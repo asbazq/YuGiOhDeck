@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Card Images</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+        }
+
+        .left-container {
+            width: 75%;
+            min-height: 100vh; /* 최소 높이를 화면의 높이와 같게 설정 */
+            height: auto; /* 컨테이너의 높이를 자동으로 조정 */
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            border-right: 2px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        .right-container {
+            width: 25%;
+            min-height: 100vh;
+            height: auto;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: center;
+            border-left: 2px solid #ccc;
+            box-sizing: border-box;
+        }
+
+        .cards {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+        }
+
+        .card-container {
+            width: 220px;
+            height: 310px;
+            position: relative;
+            perspective: 1000px;
+            transition: transform 0.3s ease-out;
+        }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 4px;
+            width: 97%;
+            height: 100%;
+            background: none;
+            filter: brightness(1.1) opacity(0.8);
+            mix-blend-mode: color-dodge;
+            transition: all 0.1s;
+        }
+
+        .card {
+            width: 100%;
+            height: 100%;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+
+        .search-result-item {
+            width: 100px;
+            min-height: 140px;
+            height: auto;
+            cursor: pointer;
+            margin-bottom: -15px;
+        }
+
+        .search-result-item img {
+            width: 100%;
+            height: auto;
+        }
+
+        .search-result-item p {
+            text-align: center;
+            margin: 0 0 0 0;
+            font-size: 0.8em;
+            line-height: 1;
+        }
+
+        .expanded {
+            transform: scale(2.5);
+            z-index: 10;
+            position: fixed;
+            top: 50%;
+            left: 37.5%;
+            /* transform-origin: center center; */
+        }
+
+        .expanded-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 5;
+            display: none;
+        }
+        
+
+        #message {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #ffdddd;
+            color: #d8000c;
+            padding: 10px;
+            border: 1px solid #d8000c;
+            border-radius: 5px;
+            display: none;
+            z-index: 10;
+        }
+
+        #mainDeckLabel {
+            width: 100%;
+            text-align: left;
+            margin: 0px 0;
+            font-weight: bold;
+            font-size: 1em;
+        }
+
+        #extraDeckLabel {
+            width: 100%;
+            text-align: left;
+            margin: 0px 0;
+            font-weight: bold;
+            font-size: 1em;
+        }
+
+        .divider {
+            width: 100%;
+            height: 20px;
+            background-color: #ccc;
+            margin: 10px 0;
+        }
+
+        .search-container {
+            display: flex;
+            flex-direction: row; /* 요소들을 수평으로 나열 */
+            justify-content: space-between; /* input 왼쪽, button 오른쪽 */
+        }
+
+        .card-detail-container {
+            position: fixed;
+            top: 5%;
+            left: 37.5%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 15;
+        }
+
+
+    </style>
+</head>
+<body>
+    <div id="cardDetailContainer" class="card-detail-container"></div>
+    <div id="message">같은 카드는 3장만 추가 가능</div>
+    <div class="left-container">
+        <button id="resetButton">Reset Decks</button>
+        <div class="divider">
+            <div id="mainDeckLabel">메인 덱 <span id="mainDeckCount">0</span></div>
+        </div>
+        <div class="cards" id="cardsContainer"></div>
+        <div class="divider">
+            <div id="extraDeckLabel">엑스트라 덱 <span id="extraDeckCount">0</div>
+        </div>
+        <div class="cards" id="extraDeck"></div>
+        <script src="https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js"></script>
+    </div>
+
+    <div class="right-container">
+        <div class="search-container">
+            <input type="text" id="searchInput" placeholder="Search cards">
+            <button id="searchButton">Search</button>
+        </div>
+        <div class="cards" id="searchResult"></div>
+    </div>
+
+    <div class="expanded-overlay"></div>
+
+    <script>
+        document.getElementById('searchButton').addEventListener('click', function() {
+            var keyWord = document.getElementById('searchInput').value;
+            fetch('/cards/search?keyWord=' + keyWord)
+                .then(response => response.json())
+                .then(data => {
+                    displaySearchResults(data);
+                });
+        });
+
+        document.getElementById('resetButton').addEventListener('click', function() {
+            // Clear cardsContainer and extraDeck
+            document.getElementById('cardsContainer').innerHTML = '';
+            document.getElementById('extraDeck').innerHTML = '';
+
+            // Update deck counts after resetting
+            updateDeckCounts();
+            
+            // Reset the URL to remove deck information
+            window.history.pushState({}, '', '/');
+        });
+        
+        function displaySearchResults(results) {
+            var searchResultContainer = document.getElementById('searchResult');
+            searchResultContainer.innerHTML = '';
+
+            results.forEach(result => {
+                var itemDiv = document.createElement('div');
+                itemDiv.classList.add('search-result-item');
+
+                var img = document.createElement('img');
+                img.src = result.imageUrlSmall;
+                img.alt = result.name;
+                itemDiv.appendChild(img);
+
+                var namePara = document.createElement('p');
+                namePara.textContent = result.name;
+                itemDiv.appendChild(namePara);
+
+                searchResultContainer.appendChild(itemDiv);
+
+                console.log("카드 추가 시 이름 : " + result.name);
+                itemDiv.addEventListener('click', function() {
+                    addCardToLeftContainer(result.imageUrl, result.frameType, result.name);
+                });
+            });
+        }
+
+        function updateDeckCounts() {
+            var mainDeckCount = document.querySelectorAll('#cardsContainer .card-container').length;
+            var extraDeckCount = document.querySelectorAll('#extraDeck .card-container').length;
+
+            document.getElementById('mainDeckCount').textContent = mainDeckCount;
+            document.getElementById('extraDeckCount').textContent = extraDeckCount;
+        }
+
+        function addCardToLeftContainer(imageUrl, frameType, name) {
+            var cardImageName = imageUrl.split('/').pop();
+            var existingCards = document.querySelectorAll('#cardsContainer .card, #extraDeck .card');
+
+            var count = 0;
+            existingCards.forEach(card => {
+                if (card.style.backgroundImage.includes(cardImageName)) {
+                    count++;
+                }
+            });
+
+            if (count >= 3) {
+                showMessage('같은 카드는 3장만 추가 가능합니다');
+                return;
+            }
+
+            var mainDeckCount = document.querySelectorAll('#cardsContainer .card-container').length;
+            if (mainDeckCount >= 60 && frameType !== 'link' && frameType !== 'fusion' && frameType !== 'synchro' && frameType !== 'xyz') {
+                showMessage('메인 덱은 60장까지만 가능합니다.');
+                return;
+            }
+
+            var extraDeckCount = document.querySelectorAll('#extraDeck .card-container').length;
+            if (extraDeckCount >= 15 && (frameType == 'link' || frameType == 'fusion' || frameType == 'synchro' || frameType == 'xyz')) {
+                showMessage('엑스트라 덱은 15장까지만 가능합니다.');
+                return;
+            }
+
+            var cardContainer = document.createElement('div');
+            cardContainer.className = 'card-container';
+            var overlay = document.createElement('div');
+            overlay.className = 'overlay';
+            var cardDiv = document.createElement('div');
+            cardDiv.className = 'card';
+            cardDiv.style.backgroundImage = 'url(' + imageUrl + ')';
+
+            var targetContainer;
+            if (frameType === 'link' || frameType === 'fusion' || frameType === 'synchro' || frameType === 'xyz') {
+                targetContainer = document.getElementById('extraDeck');
+            } else {
+                targetContainer = document.getElementById('cardsContainer');
+            }
+
+            cardContainer.addEventListener('contextmenu', function(e) {
+                e.preventDefault();
+                if (!cardContainer.classList.contains('expanded')) {
+                    cardContainer.remove();
+                    sortCards(targetContainer);
+                    updateDeckCounts(); // 덱 카운트 업데이트
+                }
+            });
+
+            cardContainer.appendChild(overlay);
+            cardContainer.appendChild(cardDiv);
+            targetContainer.appendChild(cardContainer);
+
+            sortCards(targetContainer);
+            setupCardEvents(cardContainer, overlay, name);
+
+            updateDeckCounts(); // 덱 카운트 업데이트
+
+            // url에 저장된 카드 정보를 업데이트
+            let cardsContent = document.getElementById('cardsContainer').innerHTML;
+            let extraDeckContent = document.getElementById('extraDeck').innerHTML;
+
+            // 두 컨테이너의 내용을 결합
+            const dataObj = { cardsContent, extraDeckContent };
+            const dataStr = JSON.stringify(dataObj);
+            // 데이터 압축
+            let compressed = pako.deflate(dataStr, { to: 'string' });
+            let save = btoa(compressed);
+            // 현재 세션의 상태를 url에 저장
+            window.history.pushState({data: save}, '', '?deck=' + encodeURIComponent(save));
+        }
+        
+        function viewCardDetail(cardName) {
+            // 백엔드의 /cards/crawl 엔드포인트에 카드 이름을 전송
+            fetch(`/cards/crawl?cardName=${encodeURIComponent(cardName)}`, {
+                method: 'GET'
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.text(); // or response.json()을 사용하여 JSON 응답을 처리
+            })
+            .then(data => {
+                const cardDetailContainer = document.getElementById('cardDetailContainer');
+                cardDetailContainer.textContent = data;
+                cardDetailContainer.style.display = 'block';
+                console.log(data);
+            })
+            .catch(error => {
+                console.error('There has been a problem with your fetch operation:', error);
+            });
+        }
+
+        function sortCards(container) {
+            var cards = Array.from(container.getElementsByClassName('card-container'));
+
+            cards.sort((a, b) => {
+                var imageUrlA = a.querySelector('.card').style.backgroundImage;
+                var imageUrlB = b.querySelector('.card').style.backgroundImage;
+                return imageUrlA.localeCompare(imageUrlB);
+            });
+
+            container.innerHTML = '';
+            cards.forEach(card => container.appendChild(card));
+        }
+
+        function showMessage(message) {
+            var messageDiv = document.getElementById('message');
+            messageDiv.textContent = message;
+            messageDiv.style.display = 'block';
+            setTimeout(function() {
+                messageDiv.style.display = 'none';
+            }, 2000);
+        }
+
+        var scrollTimeout;
+        var expandedCards = new Set();
+        var lastScrollY = window.scrollY;
+
+        window.addEventListener('scroll', function() {
+            var currentScrollY = window.scrollY;
+            var scrollDiff = currentScrollY - lastScrollY;
+
+            expandedCards.forEach(cardContainer => {
+                var currentTransform = new DOMMatrix(window.getComputedStyle(cardContainer).transform);
+                var currentY = currentTransform.m42;
+
+                var direction = scrollDiff < 0 ? 'down' : 'up';
+
+                var newY;
+                if (direction === 'up') {
+                    newY = currentY - Math.abs(scrollDiff) * 10;
+                } else {
+                    newY = currentY + Math.abs(scrollDiff) * 10;
+                }
+                cardContainer.style.transform = `translate(-50%, ${newY}px) scale(2.5)`;
+            });
+
+            clearTimeout(scrollTimeout);
+
+            scrollTimeout = setTimeout(function() {
+                expandedCards.forEach(cardContainer => {
+                    cardContainer.style.transform = 'translate(-50%, -50%) scale(2.5)';
+                });
+            }, 200);
+
+            lastScrollY = currentScrollY;
+        });
+
+        document.body.addEventListener('click', function() {
+            expandedCards.clear();
+        });
+
+        function setupCardEvents(cardContainer, overlay, name) {
+            var isExpanded = false;
+            var expandedOverlay = document.querySelector('.expanded-overlay');
+
+            cardContainer.addEventListener('click', function(e) {
+                e.stopPropagation();
+                isExpanded = !isExpanded;
+
+                if (isExpanded) {
+                    cardContainer.classList.add('expanded');
+                    expandedOverlay.style.display = 'block';
+                    cardContainer.style.position = 'fixed';
+                    cardContainer.style.top = '50%';
+                    cardContainer.style.left = '37.5%';
+                    cardContainer.style.transform = 'translate(-50%, -50%) scale(2.5)';
+                    expandedCards.add(cardContainer);
+                    viewCardDetail(name);
+                } else {
+                    cardContainer.classList.remove('expanded');
+                    expandedOverlay.style.display = 'none';
+                    cardContainer.style.position = 'relative';
+                    cardContainer.style.top = 'auto';
+                    cardContainer.style.left = 'auto';
+                    cardContainer.style.transform = 'none';
+                    expandedCards.delete(cardContainer);
+                    cardDetailContainer.style.display = 'none';
+                }
+            });
+
+            expandedOverlay.addEventListener('click', function(e) {
+                e.stopPropagation();
+                isExpanded = false;
+                expandedCards.forEach(cardContainer => {
+                    cardContainer.classList.remove('expanded');
+                });
+                expandedOverlay.style.display = 'none';
+                cardContainer.style.position = 'relative';
+                cardContainer.style.top = 'auto';
+                cardContainer.style.left = 'auto';
+                cardContainer.style.transform = 'none';
+                cardDetailContainer.style.display = 'none';
+                expandedCards.clear();
+            });
+
+            cardContainer.addEventListener('mousemove', function(e) {
+                var x = e.offsetX;
+                var y = e.offsetY;
+                var rotateY = -1 / 5 * x + 20;
+                var rotateX = 4 / 30 * y - 20;
+
+                var bgPosX = (x / cardContainer.clientWidth) * 100;
+                var bgPosY = (y / cardContainer.clientHeight) * 100;
+
+                overlay.style.background = `radial-gradient(circle at ${bgPosX}% ${bgPosY}%, rgba(255, 255, 255, 0.8), transparent 70%)`;
+                cardContainer.style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+
+                if (isExpanded) {
+                    cardContainer.style.transform = `translate(-50%, -50%) scale(2.5) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                } else {
+                    cardContainer.style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                }
+            });
+
+            cardContainer.addEventListener('mouseout', function() {
+                overlay.style.background = 'none';
+                if (isExpanded) {
+                    cardContainer.style.transform = 'translate(-50%, -50%) scale(2.5)';
+                } else {
+                    cardContainer.style.transform = 'perspective(350px) rotateY(0deg) rotateX(0deg)';
+                }
+            });
+        }
+
+        window.onload = function() {
+            // URL에서 'deck' 매개변수의 값을 가져옵니다.
+            const params = new URLSearchParams(window.location.search);
+            const deck = params.get('deck');
+        
+            // 'deck' 매개변수의 값이 존재하면 해당 내용으로 사이트 출력
+            if (deck) {
+                // base64 디코딩
+                const compressed = atob(deck);
+                // 압축 해제
+                const dataStr = pako.inflate(compressed, { to: 'string' });
+                 // 결합된 데이터를 분리
+                const dataObj = JSON.parse(dataStr);
+                // 해제된 데이터를 웹 페이지에 표시
+                document.getElementById('cardsContainer').innerHTML = dataObj.cardsContent;
+                document.getElementById('extraDeck').innerHTML = dataObj.extraDeckContent;
+
+               // 각 카드 컨테이너에 이벤트 적용
+               let allCardContainers = document.querySelectorAll('.card-container');
+                allCardContainers.forEach(cardContainer => {
+                    let overlay = cardContainer.querySelector('.overlay');
+                    let card = cardContainer.querySelector('.card');
+                    let cardName = card.style.backgroundImage.split('/').pop().split('.')[0]; // 이미지 URL에서 카드 이름 추출
+                    console.log("카드 이름 : " + cardName);
+                    setupCardEvents(cardContainer, overlay, cardName);
+                    
+                    cardContainer.addEventListener('contextmenu', function(e) {
+                        if (!cardContainer.classList.contains('expanded')) {
+                                cardContainer.remove();
+                                sortCards(targetContainer);
+                                updateDeckCounts(); // 덱 카운트 업데이트
+                            }
+                    });
+                });
+                updateDeckCounts(); // 덱 카운트 업데이트
+            }
+           
+        };
+    </script>
+</body>
+</html>
