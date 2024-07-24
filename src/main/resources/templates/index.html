@@ -7,10 +7,12 @@
     <style>
         body {
             margin: 0;
+            font-family: Arial, sans-serif;
             display: flex;
+            background-color: #f8f9fa;
         }
 
-        .left-container {
+        .left-container, .right-container {
             width: 75%;
             min-height: 100vh; /* 최소 높이를 화면의 높이와 같게 설정 */
             height: auto; /* 컨테이너의 높이를 자동으로 조정 */
@@ -20,6 +22,13 @@
             align-items: center;
             border-right: 2px solid #ccc;
             box-sizing: border-box;
+            padding: 20px;
+        }
+
+        .left-container {
+            width: 75%;
+            border-right: 1px solid #dee2e6;
+            background-color: #ffffff;
         }
 
         .right-container {
@@ -32,6 +41,7 @@
             align-items: center;
             border-left: 2px solid #ccc;
             box-sizing: border-box;
+            overflow-y: auto;
         }
 
         .cards {
@@ -42,8 +52,8 @@
         }
 
         .card-container {
-            width: 220px;
-            height: 310px;
+            width: 140px; /* 기존 220px에서 변경 */
+            height: 230px; /* 기존 310px에서 변경 */
             position: relative;
             perspective: 1000px;
             transition: transform 0.3s ease-out;
@@ -51,10 +61,10 @@
 
         .overlay {
             position: absolute;
-            top: 0;
-            left: 4px;
-            width: 97%;
-            height: 100%;
+            top: 13px;
+            left: 0;
+            width: 100%;
+            height: 88.5%;
             background: none;
             filter: brightness(1.1) opacity(0.8);
             mix-blend-mode: color-dodge;
@@ -90,7 +100,7 @@
         }
 
         .expanded {
-            transform: scale(2.5);
+            transform: scale(4);
             z-index: 10;
             position: fixed;
             top: 50%;
@@ -139,18 +149,46 @@
             font-weight: bold;
             font-size: 1em;
         }
+        
+        #searchLabel {
+            margin: 20px 0;
+        }
 
         .divider {
             width: 100%;
-            height: 20px;
-            background-color: #ccc;
-            margin: 10px 0;
+            height: 2px;
+            background-color: #dee2e6;
+            margin: 20px 0;
         }
 
         .search-container {
+            width: 90%;
             display: flex;
-            flex-direction: row; /* 요소들을 수평으로 나열 */
-            justify-content: space-between; /* input 왼쪽, button 오른쪽 */
+            margin-top: 20px;
+        }
+
+        .search-container input {
+            width: 70%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 5px 0 0 5px;
+            font-size: 1em;
+        }
+
+        .search-container button {
+            width: 30%;
+            padding: 10px;
+            background-color: #007bff;
+            border: 1px solid #007bff;
+            color: #ffffff;
+            border-radius: 0 5px 5px 0;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+
+        .search-container button:hover {
+            background-color: #0056b3;
         }
 
         .card-detail-container {
@@ -164,6 +202,21 @@
             box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
             display: none;
             z-index: 15;
+        }
+
+        button#resetButton {
+            padding: 10px 20px;
+            background-color: #ff6b6b;
+            border: none;
+            color: white;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background-color 0.3s;
+        }
+
+        button#resetButton:hover {
+            background-color: #e63946;
         }
 
 
@@ -190,6 +243,8 @@
             <input type="text" id="searchInput" placeholder="Search cards">
             <button id="searchButton">Search</button>
         </div>
+        <div class="divider">
+            <div id="searchLabel">    </div>
         <div class="cards" id="searchResult"></div>
     </div>
 
@@ -198,11 +253,15 @@
     <script>
         document.getElementById('searchButton').addEventListener('click', function() {
             var keyWord = document.getElementById('searchInput').value;
-            fetch('/cards/search?keyWord=' + keyWord)
-                .then(response => response.json())
-                .then(data => {
-                    displaySearchResults(data);
-                });
+            if (/^[a-zA-Z0-9 가-힣]*$/.test(keyWord)) {
+                fetch('/cards/search?keyWord=' + encodeURIComponent(keyWord))
+                    .then(response => response.json())
+                    .then(data => {
+                        displaySearchResults(data);
+                    });
+            } else {
+                showMessage('유효하지 않은 입력입니다.');
+            }
         });
 
         document.getElementById('resetButton').addEventListener('click', function() {
@@ -216,6 +275,56 @@
             // Reset the URL to remove deck information
             window.history.pushState({}, '', '/');
         });
+
+
+
+        var scrollTimeout;
+        var expandedCards = new Set();
+        var lastScrollY = window.scrollY;
+
+        window.addEventListener('scroll', function() {
+            var currentScrollY = window.scrollY;
+            var scrollDiff = currentScrollY - lastScrollY;
+
+            expandedCards.forEach(cardContainer => {
+                var currentTransform = new DOMMatrix(window.getComputedStyle(cardContainer).transform);
+                var currentY = currentTransform.m42;
+
+                var direction = scrollDiff < 0 ? 'down' : 'up';
+
+                var newY;
+                if (direction === 'up') {
+                    newY = currentY - Math.abs(scrollDiff) * 10;
+                } else {
+                    newY = currentY + Math.abs(scrollDiff) * 10;
+                }
+                cardContainer.style.transform = `translate(-50%, ${newY}px) scale(4)`;
+            });
+
+            clearTimeout(scrollTimeout);
+
+            scrollTimeout = setTimeout(function() {
+                expandedCards.forEach(cardContainer => {
+                    cardContainer.style.transform = 'translate(-50%, -50%) scale(4)';
+                });
+            }, 200);
+
+            lastScrollY = currentScrollY;
+        });
+
+        document.body.addEventListener('click', function() {
+            expandedCards.clear();
+        });
+
+        function updateContainer(container, content) {
+            container.innerHTML = ''; // 기존 내용을 제거
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content; // 임시 div를 사용하여 안전하게 내용 추가
+
+            Array.from(tempDiv.children).forEach(child => {
+                container.appendChild(child);
+            });
+        }
         
         function displaySearchResults(results) {
             var searchResultContainer = document.getElementById('searchResult');
@@ -225,8 +334,12 @@
                 var itemDiv = document.createElement('div');
                 itemDiv.classList.add('search-result-item');
 
+                // var imgUrl = `/card_images/${result.imageUrl.split('/').pop()}`;
+                var imgUrl = `https://myyugiohdeck.s3.ap-northeast-2.amazonaws.com/card_images/${result.imageUrl.split('/').pop()}`;
+                console.log("이미지 URL : " + imgUrl);
+
                 var img = document.createElement('img');
-                img.src = result.imageUrlSmall;
+                img.src = imgUrl;
                 img.alt = result.name;
                 itemDiv.appendChild(img);
 
@@ -238,7 +351,7 @@
 
                 console.log("카드 추가 시 이름 : " + result.name);
                 itemDiv.addEventListener('click', function() {
-                    addCardToLeftContainer(result.imageUrl, result.frameType, result.name);
+                    addCardToLeftContainer(imgUrl, result.frameType, result.name);
                 });
             });
         }
@@ -252,12 +365,12 @@
         }
 
         function addCardToLeftContainer(imageUrl, frameType, name) {
-            var cardImageName = imageUrl.split('/').pop();
+            var cardImageId = imageUrl.split('/').pop();
             var existingCards = document.querySelectorAll('#cardsContainer .card, #extraDeck .card');
 
             var count = 0;
             existingCards.forEach(card => {
-                if (card.style.backgroundImage.includes(cardImageName)) {
+                if (card.style.backgroundImage.includes(cardImageId)) {
                     count++;
                 }
             });
@@ -300,6 +413,7 @@
                     cardContainer.remove();
                     sortCards(targetContainer);
                     updateDeckCounts(); // 덱 카운트 업데이트
+                    saveUrl(); // URL에 저장된 카드 정보 업데이트
                 }
             });
 
@@ -312,6 +426,10 @@
 
             updateDeckCounts(); // 덱 카운트 업데이트
 
+           saveUrl(); // URL에 저장된 카드 정보 업데이트
+        }
+
+        function saveUrl() {
             // url에 저장된 카드 정보를 업데이트
             let cardsContent = document.getElementById('cardsContainer').innerHTML;
             let extraDeckContent = document.getElementById('extraDeck').innerHTML;
@@ -327,8 +445,7 @@
         }
         
         function viewCardDetail(cardName) {
-            // 백엔드의 /cards/crawl 엔드포인트에 카드 이름을 전송
-            fetch(`/cards/crawl?cardName=${encodeURIComponent(cardName)}`, {
+            fetch(`/cards/cardinfo?cardName=${encodeURIComponent(cardName)}`, {
                 method: 'GET'
             })
             .then(response => {
@@ -370,44 +487,6 @@
             }, 2000);
         }
 
-        var scrollTimeout;
-        var expandedCards = new Set();
-        var lastScrollY = window.scrollY;
-
-        window.addEventListener('scroll', function() {
-            var currentScrollY = window.scrollY;
-            var scrollDiff = currentScrollY - lastScrollY;
-
-            expandedCards.forEach(cardContainer => {
-                var currentTransform = new DOMMatrix(window.getComputedStyle(cardContainer).transform);
-                var currentY = currentTransform.m42;
-
-                var direction = scrollDiff < 0 ? 'down' : 'up';
-
-                var newY;
-                if (direction === 'up') {
-                    newY = currentY - Math.abs(scrollDiff) * 10;
-                } else {
-                    newY = currentY + Math.abs(scrollDiff) * 10;
-                }
-                cardContainer.style.transform = `translate(-50%, ${newY}px) scale(2.5)`;
-            });
-
-            clearTimeout(scrollTimeout);
-
-            scrollTimeout = setTimeout(function() {
-                expandedCards.forEach(cardContainer => {
-                    cardContainer.style.transform = 'translate(-50%, -50%) scale(2.5)';
-                });
-            }, 200);
-
-            lastScrollY = currentScrollY;
-        });
-
-        document.body.addEventListener('click', function() {
-            expandedCards.clear();
-        });
-
         function setupCardEvents(cardContainer, overlay, name) {
             var isExpanded = false;
             var expandedOverlay = document.querySelector('.expanded-overlay');
@@ -422,7 +501,7 @@
                     cardContainer.style.position = 'fixed';
                     cardContainer.style.top = '50%';
                     cardContainer.style.left = '37.5%';
-                    cardContainer.style.transform = 'translate(-50%, -50%) scale(2.5)';
+                    cardContainer.style.transform = 'translate(-50%, -50%) scale(4)';
                     expandedCards.add(cardContainer);
                     viewCardDetail(name);
                 } else {
@@ -465,7 +544,7 @@
                 cardContainer.style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
 
                 if (isExpanded) {
-                    cardContainer.style.transform = `translate(-50%, -50%) scale(2.5) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+                    cardContainer.style.transform = `translate(-50%, -50%) scale(4) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
                 } else {
                     cardContainer.style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
                 }
@@ -474,7 +553,7 @@
             cardContainer.addEventListener('mouseout', function() {
                 overlay.style.background = 'none';
                 if (isExpanded) {
-                    cardContainer.style.transform = 'translate(-50%, -50%) scale(2.5)';
+                    cardContainer.style.transform = 'translate(-50%, -50%) scale(4)';
                 } else {
                     cardContainer.style.transform = 'perspective(350px) rotateY(0deg) rotateX(0deg)';
                 }
@@ -486,8 +565,8 @@
             const params = new URLSearchParams(window.location.search);
             const deck = params.get('deck');
         
-            // 'deck' 매개변수의 값이 존재하면 해당 내용으로 사이트 출력
-            if (deck) {
+            // 'deck' 매개변수의 값이 존재하고 URL 파라미터 검증 후 해당 내용으로 사이트 출력
+            if (deck && /^[a-zA-Z0-9+/=]*$/.test(deck)) {
                 // base64 디코딩
                 const compressed = atob(deck);
                 // 압축 해제
@@ -495,8 +574,10 @@
                  // 결합된 데이터를 분리
                 const dataObj = JSON.parse(dataStr);
                 // 해제된 데이터를 웹 페이지에 표시
-                document.getElementById('cardsContainer').innerHTML = dataObj.cardsContent;
-                document.getElementById('extraDeck').innerHTML = dataObj.extraDeckContent;
+                updateContainer(document.getElementById('cardsContainer'), dataObj.cardsContent);
+                updateContainer(document.getElementById('extraDeck'), dataObj.extraDeckContent);
+                // document.getElementById('cardsContainer').innerHTML = dataObj.cardsContent;
+                // document.getElementById('extraDeck').innerHTML = dataObj.extraDeckContent;
 
                // 각 카드 컨테이너에 이벤트 적용
                let allCardContainers = document.querySelectorAll('.card-container');
@@ -508,16 +589,19 @@
                     setupCardEvents(cardContainer, overlay, cardName);
                     
                     cardContainer.addEventListener('contextmenu', function(e) {
+                        e.preventDefault();
                         if (!cardContainer.classList.contains('expanded')) {
-                                cardContainer.remove();
-                                sortCards(targetContainer);
-                                updateDeckCounts(); // 덱 카운트 업데이트
-                            }
+                            let targetContainer = cardContainer.closest('#extraDeck') ? document.getElementById('extraDeck') : document.getElementById('cardsContainer');
+                            cardContainer.remove();
+                            sortCards(targetContainer);
+                            updateDeckCounts(); // 덱 카운트 업데이트
+                            saveUrl(); // URL에 저장된 카드 정보 업데이트
+                        }
                     });
                 });
                 updateDeckCounts(); // 덱 카운트 업데이트
+                saveUrl(); // URL에 저장된 카드 정보 업데이트
             }
-           
         };
     </script>
 </body>
