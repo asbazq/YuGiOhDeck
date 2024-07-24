@@ -4,6 +4,7 @@ import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
@@ -18,9 +19,13 @@ public class CardModel {
     @Id
     private Long id;
     private String name;
+    private String korName;
     private String type;
     private String frameType;
-    // private String desc;
+    @Column(length = 1000)
+    private String desc;
+    @Column(length = 1000)
+    private String korDesc;
     private int atk;
     private int def;
     private int level;
