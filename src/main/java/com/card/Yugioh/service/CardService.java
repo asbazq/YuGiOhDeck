@@ -6,8 +6,11 @@ import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.model.CardImage;
 import com.card.Yugioh.model.CardModel;
@@ -15,11 +18,9 @@ import com.card.Yugioh.repository.CardImgRepository;
 import com.card.Yugioh.repository.CardRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import javax.imageio.ImageIO;
-import java.awt.image.BufferedImage;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
@@ -29,11 +30,12 @@ import java.util.regex.Pattern;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.net.URLDecoder;
+import java.net.HttpURLConnection;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CardService {
-    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
     // sort - 카드 정렬 (atk, def, name, type, level, id, new).
     // 최신 카드 5장
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=10&offset=0&sort=name";
@@ -41,13 +43,13 @@ public class CardService {
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?banlist=ocg&sort=new";
     // 모든 카드
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
+    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
+
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
-
-    public CardService(CardRepository cardRepository, CardImgRepository cardImgRepository) {
-        this.cardRepository = cardRepository;
-        this.cardImgRepository = cardImgRepository;
-    }
+    private final AmazonS3 s3Client;
+    @Value("${cloud.aws.s3.bucket}")
+    private final String bucket;
 
     public void fetchAndSaveCardImages() throws IOException {
         String response = Request.get(apiUrl)
@@ -79,12 +81,39 @@ public class CardService {
         return cardModels;
     }
 
-    private void saveCardImages(JSONArray cardData, List<CardModel> cardModels) throws IOException {
-        File savePath = new File("src/main/resources/static/card_images");
-        if (!savePath.exists()) {
-            savePath.mkdir();
-        }
+    // private void saveCardImages(JSONArray cardData, List<CardModel> cardModels) throws IOException {
+    //     File savePath = new File("src/main/resources/static/card_images");
+    //     if (!savePath.exists()) {
+    //         savePath.mkdir();
+    //     }
 
+    //     for (int i = 0; i < cardData.length(); i++) {
+    //         JSONObject card = cardData.getJSONObject(i);
+    //         JSONArray cardImages = card.getJSONArray("card_images");
+
+    //         for (int j = 0; j < cardImages.length(); j++) {
+    //             JSONObject imageInfo = cardImages.getJSONObject(j);
+    //             String imageUrl = imageInfo.getString("image_url");
+    //             Long imageId = imageInfo.getLong("id");
+    //             String imageUrlSmall = imageInfo.getString("image_url_small");
+    //             String imageUrlCropped = imageInfo.getString("image_url_cropped");
+    //             CardImage cardImage = new CardImage(imageId, imageUrl, imageUrlSmall, imageUrlCropped, cardModels.get(i));
+
+    //             cardImgRepository.save(cardImage);
+    //             File outputFile = new File(savePath, imageId + ".jpg");
+
+    //             if (outputFile.exists()) {
+    //                 log.info("Image {} already exists, skipping download.", outputFile.getName());
+    //                 continue;
+    //             }
+
+    //             saveImage(imageUrl, new File(savePath, imageId + ".jpg"));
+    //         }
+    //     }
+    //     log.info("저장된 카드 수 : {}", cardData.length());
+    // }
+
+    private void saveCardImages(JSONArray cardData, List<CardModel> cardModels) throws IOException {
         for (int i = 0; i < cardData.length(); i++) {
             JSONObject card = cardData.getJSONObject(i);
             JSONArray cardImages = card.getJSONArray("card_images");
@@ -98,25 +127,42 @@ public class CardService {
                 CardImage cardImage = new CardImage(imageId, imageUrl, imageUrlSmall, imageUrlCropped, cardModels.get(i));
 
                 cardImgRepository.save(cardImage);
-                File outputFile = new File(savePath, imageId + ".jpg");
 
-                if (outputFile.exists()) {
-                    log.info("Image {} already exists, skipping download.", outputFile.getName());
+                String imageKey = imageId + ".jpg";
+
+                if (s3Client.doesObjectExist(bucket, imageKey)) {
+                    log.info("Image {} already exists in S3, skipping download.", imageKey);
                     continue;
                 }
 
-                saveImage(imageUrl, new File(savePath, imageId + ".jpg"));
+                saveImage(imageUrl, imageKey);
             }
         }
         log.info("저장된 카드 수 : {}", cardData.length());
     }
 
-    private void saveImage(String imageUrl, File output) throws IOException {
-        try (InputStream in = new URL(imageUrl).openStream()) {
-            BufferedImage image = ImageIO.read(in);
-            ImageIO.write(image, "jpg", output);
+     private void saveImage(String imageUrl, String imageKey) throws IOException {
+        URL url = new URL(imageUrl);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setRequestMethod("GET");
+        try (InputStream in = connection.getInputStream()) {
+            s3Client.putObject(new PutObjectRequest(bucket, imageKey, in, null));
         }
     }
+
+    // private void saveImage(String imageUrl, File output) throws IOException {
+    //     try (InputStream in = new URL(imageUrl).openStream()) {
+    //         BufferedImage image = ImageIO.read(in);
+    //         ImageIO.write(image, "jpg", output);
+    //     }
+    // }
+
+    public void saveCardInfo(List<CardModel> cardModels) {
+        for (CardModel cardModel : cardModels) {
+            cardRepository.save(cardModel);
+            log.info("카드 이름 : {}", cardModel.getName());
+        }
+}
 
     // public List<String> getCardImageUrls() {
     //     List<String> imageUrls = new ArrayList<>();
@@ -137,14 +183,6 @@ public class CardService {
         
     //     return imageUrls;
     // }
-
-    public void saveCardInfo(List<CardModel> cardModels) {
-        for (CardModel cardModel : cardModels) {
-            cardRepository.save(cardModel);
-            log.info("카드 이름 : {}", cardModel.getName());
-        }
-    
-}
 
     public List<CardMiniDto> search(String keyWord) {
         List<CardModel> cards = cardRepository.searchByNameContaining(keyWord);
