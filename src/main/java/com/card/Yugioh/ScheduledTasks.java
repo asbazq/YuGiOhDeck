@@ -1,10 +1,12 @@
 package com.card.Yugioh;
 
+import java.io.IOException;
+
 import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import com.card.Yugioh.controller.CardController;
+import com.card.Yugioh.service.CardService;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -18,7 +20,7 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class ScheduledTasks {
 
-    private final CardController cardController;
+    private final CardService cardService;
 
     @PostConstruct
     public void onStartup() {
@@ -30,6 +32,11 @@ public class ScheduledTasks {
     // (초(0초),분(0분),시간(자정), */14(14일마다), *(매월), ?(요일을 지정하지 않음))
     @Scheduled(cron = "0 0 0 */14 * ?")
     public void fetchApiData() {
-        cardController.fetchAndSaveCardImages();
+        try {
+            cardService.fetchAndSaveCardImages();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        cardService.crawlAll();
     }
 }
