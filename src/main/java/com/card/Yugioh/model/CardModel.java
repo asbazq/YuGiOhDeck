@@ -1,11 +1,16 @@
 package com.card.Yugioh.model;
 
+import java.time.LocalDateTime;
 import java.util.List;
+
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
 import lombok.Getter;
@@ -15,16 +20,19 @@ import lombok.Setter;
 @Setter
 @Entity
 @JsonIgnoreProperties(ignoreUnknown = true) // Jackson에게 알려지지 않은 속성을 무시
+@EntityListeners(AuditingEntityListener.class)
 public class CardModel {
     @Id
     private Long id;
+    @CreatedDate
+    private LocalDateTime createdAt;
     private String name;
     private String korName;
     private String type;
     private String frameType;
-    @Column(length = 1000)
+    @Column(name = "`desc`", length = 2048)
     private String desc;
-    @Column(length = 1000)
+    @Column(length = 2048)
     private String korDesc;
     private int atk;
     private int def;
