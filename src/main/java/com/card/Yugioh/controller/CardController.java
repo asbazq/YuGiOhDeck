@@ -1,8 +1,9 @@
 package com.card.Yugioh.controller;
 
-import java.io.IOException;
 import java.util.List;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,17 +21,6 @@ import lombok.RequiredArgsConstructor;
 public class CardController {
     private final CardService cardService;
 
-    @GetMapping("/fetchAndSaveImages")
-    public String fetchAndSaveCardImages() {
-        try {
-            cardService.fetchAndSaveCardImages();
-            return "Card images fetched and saved successfully!";
-        } catch (IOException e) {
-            e.printStackTrace();
-            return "Failed to fetch and save card images";
-        }
-    }
-
     // @GetMapping("/cardImages")
     // @ResponseBody
     // public List<String> getCardImageUrls(Model model) {
@@ -40,8 +30,8 @@ public class CardController {
 
     @GetMapping("/search")
     @ResponseBody
-    public List<CardMiniDto> CardSearch(@RequestParam String keyWord) {
-        return cardService.search(keyWord);
+    public Page<CardMiniDto> CardSearch(@RequestParam String keyWord, Pageable pageable) {
+        return cardService.search(keyWord, pageable);
     }    
 
     // @GetMapping("/crawl")
