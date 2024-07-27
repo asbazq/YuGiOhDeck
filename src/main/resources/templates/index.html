@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interactive Card Images</title>
+    <title>YuGiOh Deck</title>
     <style>
         body {
             margin: 0;
@@ -134,15 +134,7 @@
             z-index: 10;
         }
 
-        #mainDeckLabel {
-            width: 100%;
-            text-align: left;
-            margin: 0px 0;
-            font-weight: bold;
-            font-size: 1em;
-        }
-
-        #extraDeckLabel {
+        #mainDeckLabel, #extraDeckLabel {
             width: 100%;
             text-align: left;
             margin: 0px 0;
@@ -213,10 +205,29 @@
             cursor: pointer;
             font-size: 1em;
             transition: background-color 0.3s;
+            margin-top: 20px;
         }
 
         button#resetButton:hover {
             background-color: #e63946;
+        }
+
+        .contact-info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 0.9em;
+            color: #707070;
+            z-index: 20;
+        }
+
+        .contact-info a {
+            color: #767779;
+            text-decoration: none;
+        }
+
+        .contact-info a:hover {
+            text-decoration: underline;
         }
 
 
@@ -226,6 +237,7 @@
     <div id="cardDetailContainer" class="card-detail-container"></div>
     <div id="message">같은 카드는 3장만 추가 가능</div>
     <div class="left-container">
+        <div class="contact-info">오류 문의 : wjdgns5488@naver.com</div>
         <button id="resetButton">Reset Decks</button>
         <div class="divider">
             <div id="mainDeckLabel">메인 덱 <span id="mainDeckCount">0</span></div>
@@ -251,14 +263,34 @@
     <div class="expanded-overlay"></div>
 
     <script>
+        let page = 0;
+        let isLoading = false;
+        let hasMoreResults = true;
+
+        function searchCards(keyWord, page) {
+            if (!hasMoreResults || isLoading) return;
+            
+            isLoading = true;
+            fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&page=${page}&size=21`)
+                .then(response => response.json())
+                .then(data => {
+                    displaySearchResults(data.content, page === 0);
+                    hasMoreResults = !data.last;
+                    currentPage = data.number;
+                    isLoading = false;
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    isLoading = false;
+                });
+        }
+
         document.getElementById('searchButton').addEventListener('click', function() {
             var keyWord = document.getElementById('searchInput').value;
-            if (/^[a-zA-Z0-9 가-힣]*$/.test(keyWord)) {
-                fetch('/cards/search?keyWord=' + encodeURIComponent(keyWord))
-                    .then(response => response.json())
-                    .then(data => {
-                        displaySearchResults(data);
-                    });
+            if (/^[a-zA-Z0-9 가-힣()]*$/.test(keyWord)) {
+                currentPage = 0;
+                hasMoreResults = true;
+                searchCards(keyWord, currentPage);
             } else {
                 showMessage('유효하지 않은 입력입니다.');
             }
@@ -326,16 +358,19 @@
             });
         }
         
-        function displaySearchResults(results) {
+        function displaySearchResults(results, clearExisting = true) {
             var searchResultContainer = document.getElementById('searchResult');
-            searchResultContainer.innerHTML = '';
+            if (clearExisting) {
+                searchResultContainer.innerHTML = '';
+            }
 
             results.forEach(result => {
                 var itemDiv = document.createElement('div');
                 itemDiv.classList.add('search-result-item');
 
                 // var imgUrl = `/card_images/${result.imageUrl.split('/').pop()}`;
-                var imgUrl = `https://myyugiohdeck.s3.ap-northeast-2.amazonaws.com/card_images/${result.imageUrl.split('/').pop()}`;
+                // var imgUrl = `https://myyugiohdeck.s3.ap-northeast-2.amazonaws.com/card_images/${result.imageUrl.split('/').pop()}`;
+                var imgUrl = `/images/${result.imageUrl.split('/').pop()}`;
                 console.log("이미지 URL : " + imgUrl);
 
                 var img = document.createElement('img');
@@ -355,6 +390,13 @@
                 });
             });
         }
+
+        document.querySelector('.right-container').addEventListener('scroll', function() {
+            if (this.scrollTop + this.clientHeight >= this.scrollHeight - 5) {
+                var keyWord = document.getElementById('searchInput').value;
+                searchCards(keyWord, currentPage + 1);
+            }
+        });
 
         function updateDeckCounts() {
             var mainDeckCount = document.querySelectorAll('#cardsContainer .card-container').length;
