@@ -7,6 +7,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import com.card.Yugioh.service.CardService;
+import com.card.Yugioh.service.ImageService;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,7 @@ import lombok.extern.slf4j.Slf4j;
 public class ScheduledTasks {
 
     private final CardService cardService;
+    private final ImageService imageService;
 
     @PostConstruct
     public void onStartup() {
@@ -33,7 +35,7 @@ public class ScheduledTasks {
     @Scheduled(cron = "0 0 0 */14 * ?")
     public void fetchApiData() {
         try {
-            cardService.fetchAndSaveCardImages();
+            imageService.fetchAndSaveCardImages();
         } catch (IOException e) {
             e.printStackTrace();
         }
