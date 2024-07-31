@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
 
+import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.service.CardService;
 
@@ -42,7 +43,7 @@ public class CardController {
 
     @GetMapping("/cardinfo")
     @ResponseBody
-    public String getCardInfo(@RequestParam String cardName) {
+    public CardInfoDto getCardInfo(@RequestParam String cardName) {
         return cardService.getCardInfo(cardName);
     }
 }

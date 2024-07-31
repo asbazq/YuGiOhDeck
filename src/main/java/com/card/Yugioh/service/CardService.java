@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.PutObjectRequest;
+import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.model.CardImage;
 import com.card.Yugioh.model.CardModel;
@@ -304,7 +305,7 @@ public class CardService {
         }
     }
 
-    public String getCardInfo(String cardName) {
+    public CardInfoDto getCardInfo(String cardName) {
         if (Pattern.matches("\\d+", cardName)) {
                 Long cardId = (long) Integer.parseInt(cardName);
                 CardImage cardImage = cardImgRepository.findById(cardId).orElseThrow(
@@ -312,6 +313,10 @@ public class CardService {
                 );
                 cardName = cardImage.getCardModel().getKorName();
             }
-        return cardName;
+            CardModel cardModel = cardRepository.findByKorName(cardName).orElseThrow(
+                () -> new IllegalArgumentException("해당 카드가 존재하지 않습니다.")
+            );
+            String korDesc = cardModel.getKorDesc();
+        return new CardInfoDto(cardName, korDesc);
     }
 }
