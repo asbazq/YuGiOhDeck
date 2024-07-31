@@ -10,6 +10,7 @@
             font-family: Arial, sans-serif;
             display: flex;
             background-color: #f8f9fa;
+            justify-content: center;
         }
 
         .left-container, .right-container {
@@ -22,17 +23,17 @@
             align-items: center;
             border-right: 2px solid #ccc;
             box-sizing: border-box;
-            padding: 20px;
+            padding: 14px;
         }
 
         .left-container {
-            width: 75%;
+            width: 60%;
             border-right: 1px solid #dee2e6;
             background-color: #ffffff;
         }
 
         .right-container {
-            width: 25%;
+            width: 18%;
             min-height: 100vh;
             height: auto;
             display: flex;
@@ -52,8 +53,8 @@
         }
 
         .card-container {
-            width: 140px; /* 기존 220px에서 변경 */
-            height: 230px; /* 기존 310px에서 변경 */
+            width: 98px; /* 기존 220px에서 변경 */
+            height: 143px; /* 기존 310px에서 변경 */
             position: relative;
             perspective: 1000px;
             transition: transform 0.3s ease-out;
@@ -61,10 +62,10 @@
 
         .overlay {
             position: absolute;
-            top: 13px;
+            top: 0;
             left: 0;
             width: 100%;
-            height: 88.5%;
+            height: 100%;
             background: none;
             filter: brightness(1.1) opacity(0.8);
             mix-blend-mode: color-dodge;
@@ -80,11 +81,11 @@
         }
 
         .search-result-item {
-            width: 100px;
-            min-height: 140px;
+            width: 70px;
+            min-height: 98px;
             height: auto;
             cursor: pointer;
-            margin-bottom: -15px;
+            margin-bottom: -10px;
         }
 
         .search-result-item img {
@@ -95,7 +96,7 @@
         .search-result-item p {
             text-align: center;
             margin: 0 0 0 0;
-            font-size: 0.8em;
+            font-size: 0.56em;
             line-height: 1;
         }
 
@@ -104,7 +105,7 @@
             z-index: 10;
             position: fixed;
             top: 50%;
-            left: 37.5%;
+            left: 41%;
             /* transform-origin: center center; */
         }
 
@@ -139,7 +140,7 @@
             text-align: left;
             margin: 0px 0;
             font-weight: bold;
-            font-size: 1em;
+            font-size: 0.7em;
         }
         
         #searchLabel {
@@ -156,26 +157,26 @@
         .search-container {
             width: 90%;
             display: flex;
-            margin-top: 20px;
+            margin-top: 14px;
         }
 
         .search-container input {
             width: 70%;
-            padding: 10px;
+            padding: 7px;
             border: 1px solid #ced4da;
             border-radius: 5px 0 0 5px;
-            font-size: 1em;
+            font-size: 0.7em;
         }
 
         .search-container button {
             width: 30%;
-            padding: 10px;
+            padding: 7px;
             background-color: #007bff;
             border: 1px solid #007bff;
             color: #ffffff;
             border-radius: 0 5px 5px 0;
             cursor: pointer;
-            font-size: 1em;
+            font-size: 0.7em;
             transition: background-color 0.3s;
         }
 
@@ -185,11 +186,24 @@
 
         .card-detail-container {
             position: fixed;
-            top: 5%;
-            left: 37.5%;
+            top: 10%;
+            left: 41%;
             transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
+            background: rgba(255, 255, 255, 0.5);
+            padding: 7px;
+            border-radius: 10px;
+            box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+            display: none;
+            z-index: 15;
+        }
+
+        .card-detail-desc-container {
+            position: fixed;
+            top: 85%;
+            left: 41%;
+            transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.5); /* 50% 투명도 */
+            padding: 7px;
             border-radius: 10px;
             box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
             display: none;
@@ -197,13 +211,13 @@
         }
 
         button#resetButton {
-            padding: 10px 20px;
+            padding: 7px 14px;
             background-color: #ff6b6b;
             border: none;
             color: white;
             border-radius: 5px;
             cursor: pointer;
-            font-size: 1em;
+            font-size: 0.7em;
             transition: background-color 0.3s;
             margin-top: 20px;
         }
@@ -216,7 +230,7 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            font-size: 0.9em;
+            font-size: 0.63em;
             color: #707070;
             z-index: 20;
         }
@@ -230,11 +244,19 @@
             text-decoration: underline;
         }
 
+        #cardDetailContainer {
+            font-weight: bold;
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
 
     </style>
 </head>
 <body>
     <div id="cardDetailContainer" class="card-detail-container"></div>
+    <div id="cardDetailDescContainer" class="card-detail-desc-container"></div>
     <div id="message">같은 카드는 3장만 추가 가능</div>
     <div class="left-container">
         <div class="contact-info">오류 문의 : wjdgns5488@naver.com</div>
@@ -254,6 +276,7 @@
         <div class="search-container">
             <input type="text" id="searchInput" placeholder="Search cards">
             <button id="searchButton">Search</button>
+            <div id="loading" style="display: none;">Loading...</div>
         </div>
         <div class="divider">
             <div id="searchLabel">    </div>
@@ -263,7 +286,7 @@
     <div class="expanded-overlay"></div>
 
     <script>
-        let page = 0;
+        let currentPage = 0;
         let isLoading = false;
         let hasMoreResults = true;
 
@@ -271,7 +294,7 @@
             if (!hasMoreResults || isLoading) return;
             
             isLoading = true;
-            fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&page=${page}&size=21`)
+            fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&page=${page}&size=56`)
                 .then(response => response.json())
                 .then(data => {
                     displaySearchResults(data.content, page === 0);
@@ -494,12 +517,16 @@
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
-                return response.text(); // or response.json()을 사용하여 JSON 응답을 처리
+                return response.json(); // or response.json()을 사용하여 JSON 응답을 처리
             })
             .then(data => {
                 const cardDetailContainer = document.getElementById('cardDetailContainer');
-                cardDetailContainer.textContent = data;
+                const cardDetailDescContainer = document.getElementById('cardDetailDescContainer');
+                
+                cardDetailContainer.textContent = data.name;
+                cardDetailDescContainer.textContent = data.korDesc;
                 cardDetailContainer.style.display = 'block';
+                cardDetailDescContainer.style.display = 'block';
                 console.log(data);
             })
             .catch(error => {
@@ -542,7 +569,7 @@
                     expandedOverlay.style.display = 'block';
                     cardContainer.style.position = 'fixed';
                     cardContainer.style.top = '50%';
-                    cardContainer.style.left = '37.5%';
+                    cardContainer.style.left = '41%';
                     cardContainer.style.transform = 'translate(-50%, -50%) scale(4)';
                     expandedCards.add(cardContainer);
                     viewCardDetail(name);
@@ -555,6 +582,7 @@
                     cardContainer.style.transform = 'none';
                     expandedCards.delete(cardContainer);
                     cardDetailContainer.style.display = 'none';
+                    cardDetailDescContainer.style.display = 'none';
                 }
             });
 
@@ -570,15 +598,18 @@
                 cardContainer.style.left = 'auto';
                 cardContainer.style.transform = 'none';
                 cardDetailContainer.style.display = 'none';
+                cardDetailDescContainer.style.display = 'none';
                 expandedCards.clear();
             });
 
             cardContainer.addEventListener('mousemove', function(e) {
                 var x = e.offsetX;
                 var y = e.offsetY;
-                var rotateY = -1 / 5 * x + 20;
-                var rotateX = 4 / 30 * y - 20;
 
+                var rotateY = -40 / 98 * x + 20;
+                var rotateX = 40 / 143 * y - 26;
+
+                console.log('x: ' + x + ', y: ' + y);
                 var bgPosX = (x / cardContainer.clientWidth) * 100;
                 var bgPosY = (y / cardContainer.clientHeight) * 100;
 
