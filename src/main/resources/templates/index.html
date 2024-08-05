@@ -287,6 +287,7 @@
         <div class="cards" id="cardsContainer"></div>
         <div id="extraDeckLabel">엑스트라 덱 <span id="extraDeckCount">0</span></div>
         <div class="cards" id="extraDeck"></div>
+        <script src="https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js"></script>
     </div>
 
     <div class="right-container">
@@ -535,7 +536,7 @@
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
-                return response.json(); // or response.json()을 사용하여 JSON 응답을 처리
+                return response.json();
             })
             .then(data => {
                 const cardDetailContainer = document.getElementById('cardDetailContainer');
@@ -607,17 +608,15 @@
             expandedOverlay.addEventListener('click', function(e) {
                 e.stopPropagation();
                 isExpanded = false;
-                expandedCards.forEach(cardContainer => {
-                    cardContainer.classList.remove('expanded');
-                });
+                cardContainer.classList.remove('expanded');
                 expandedOverlay.style.display = 'none';
                 cardContainer.style.position = 'relative';
                 cardContainer.style.top = 'auto';
                 cardContainer.style.left = 'auto';
                 cardContainer.style.transform = 'none';
+                expandedCards.delete(cardContainer);
                 cardDetailContainer.style.display = 'none';
                 cardDetailDescContainer.style.display = 'none';
-                expandedCards.clear();
             });
 
             cardContainer.addEventListener('mousemove', function(e) {
