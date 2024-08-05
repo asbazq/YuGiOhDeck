@@ -9,8 +9,9 @@
             margin: 0;
             font-family: Arial, sans-serif;
             display: flex;
-            background-color: #f8f9fa;
             justify-content: center;
+            color: #212122;
+            background-color: #e0e7ee;
         }
 
         .left-container, .right-container {
@@ -21,15 +22,16 @@
             flex-direction: column;
             justify-content: flex-start;
             align-items: center;
-            border-right: 2px solid #ccc;
             box-sizing: border-box;
             padding: 14px;
+            background: #fbfdff;
+            border-radius: 10px;
+            margin: 5px;
+            box-sizing: border-box;
         }
 
         .left-container {
             width: 60%;
-            border-right: 1px solid #dee2e6;
-            background-color: #ffffff;
         }
 
         .right-container {
@@ -40,8 +42,6 @@
             flex-direction: column;
             justify-content: flex-start;
             align-items: center;
-            border-left: 2px solid #ccc;
-            box-sizing: border-box;
             overflow-y: auto;
         }
 
@@ -57,9 +57,15 @@
             height: 143px; /* 기존 310px에서 변경 */
             position: relative;
             perspective: 1000px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s ease-out;
         }
 
+        
+        .card-container:hover {
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+        }
+        
         .overlay {
             position: absolute;
             top: 0;
@@ -115,7 +121,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.5);
+            background: rgba(0, 0, 0, 0.7);
             z-index: 5;
             display: none;
         }
@@ -124,7 +130,7 @@
         #message {
             position: fixed;
             top: 20px;
-            left: 50%;
+            left: 41%;
             transform: translateX(-50%);
             background: #ffdddd;
             color: #d8000c;
@@ -135,12 +141,15 @@
             z-index: 10;
         }
 
+
         #mainDeckLabel, #extraDeckLabel {
             width: 100%;
             text-align: left;
-            margin: 0px 0;
+            margin: 0 0 10px 0;
             font-weight: bold;
-            font-size: 0.7em;
+            font-size: 0.9em;
+            border-bottom: 2px solid #7e7c7c;
+            padding-bottom: 5px;
         }
         
         #searchLabel {
@@ -150,46 +159,49 @@
         .divider {
             width: 100%;
             height: 2px;
-            background-color: #dee2e6;
-            margin: 20px 0;
+            background-color: #615e5e;
+            margin: 60px 0;
         }
 
-        .search-container {
-            width: 90%;
-            display: flex;
-            margin-top: 14px;
-        }
 
         .search-container input {
-            width: 70%;
-            padding: 7px;
+            position: fixed;
+            height: 30px;
+            width: 15%;
+            top: 30px;
+            left: 73%;
+            padding: 10px;
             border: 1px solid #ced4da;
-            border-radius: 5px 0 0 5px;
-            font-size: 0.7em;
+            border-radius: 5px 5px 5px 5px;
+            font-size: 1em;
+            outline: none;
+            background: rgba(207, 206, 206, 0.7);
+            color: #0e1f47;
+            transition: border-color 0.3s;
+            border-width: 2px;
+            border-radius: 10px;
+            transition: all 0.3s ease;
         }
 
-        .search-container button {
-            width: 30%;
-            padding: 7px;
-            background-color: #007bff;
-            border: 1px solid #007bff;
-            color: #ffffff;
-            border-radius: 0 5px 5px 0;
-            cursor: pointer;
-            font-size: 0.7em;
-            transition: background-color 0.3s;
+        .search-container input::placeholder {
+            color: #b0b3b8;
         }
 
-        .search-container button:hover {
-            background-color: #0056b3;
+        .search-container  input:hover {
+            background-color: #d0d1d4;
         }
+
+        .search-container input:focus {
+            border-color: #14bcff;
+        }
+
 
         .card-detail-container {
             position: fixed;
             top: 10%;
             left: 41%;
             transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.7);
             padding: 7px;
             border-radius: 10px;
             box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
@@ -211,36 +223,27 @@
         }
 
         button#resetButton {
-            padding: 7px 14px;
-            background-color: #ff6b6b;
+            position: fixed;
+            bottom: 20px; /* 화면 하단에서의 거리 */
+            right: 20px; /* 화면 우측에서의 거리 */
+            padding: 10px 20px;
+            background-color: #3b5998;
             border: none;
             color: white;
-            border-radius: 5px;
+            border-radius: 10px;
             cursor: pointer;
-            font-size: 0.7em;
-            transition: background-color 0.3s;
-            margin-top: 20px;
+            font-size: 1em;
+            transition: background-color 0.3s, box-shadow 0.3s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
         }
 
         button#resetButton:hover {
-            background-color: #e63946;
+            background-color: #2d4373;
+            box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
         }
 
-        .contact-info {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            font-size: 0.63em;
-            color: #707070;
-            z-index: 20;
-        }
 
-        .contact-info a {
-            color: #767779;
-            text-decoration: none;
-        }
-
-        .contact-info a:hover {
+        .contact-info:hover {
             text-decoration: underline;
         }
 
@@ -251,7 +254,24 @@
             text-align: center;
         }
 
+        #title {
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
 
+        .description {
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+
+        .contact-info {
+            font-size: 12px;
+            color: #666;
+            margin-bottom: 20px;
+            margin-right: auto;
+        }
+        
     </style>
 </head>
 <body>
@@ -259,23 +279,19 @@
     <div id="cardDetailDescContainer" class="card-detail-desc-container"></div>
     <div id="message">같은 카드는 3장만 추가 가능</div>
     <div class="left-container">
+        <div id="title">YuGiOh Deck</div>
+        <div class="description">이 웹사이트는 YuGiOh 덱 빌더입니다. 원하는 카드를 추가하고 덱을 구성해보세요!</div>
         <div class="contact-info">오류 문의 : wjdgns5488@naver.com</div>
-        <button id="resetButton">Reset Decks</button>
-        <div class="divider">
-            <div id="mainDeckLabel">메인 덱 <span id="mainDeckCount">0</span></div>
-        </div>
+        <button id="resetButton">Reset</button>
+        <div id="mainDeckLabel">메인 덱 <span id="mainDeckCount">0</span></div>
         <div class="cards" id="cardsContainer"></div>
-        <div class="divider">
-            <div id="extraDeckLabel">엑스트라 덱 <span id="extraDeckCount">0</div>
-        </div>
+        <div id="extraDeckLabel">엑스트라 덱 <span id="extraDeckCount">0</span></div>
         <div class="cards" id="extraDeck"></div>
-        <script src="https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js"></script>
     </div>
 
     <div class="right-container">
         <div class="search-container">
-            <input type="text" id="searchInput" placeholder="Search cards">
-            <button id="searchButton">Search</button>
+            <input type="search" name="search" id="searchInput" placeholder="eg: Dark Magician">
             <div id="loading" style="display: none;">Loading...</div>
         </div>
         <div class="divider">
@@ -308,16 +324,18 @@
                 });
         }
 
-        document.getElementById('searchButton').addEventListener('click', function() {
-            var keyWord = document.getElementById('searchInput').value;
-            if (/^[a-zA-Z0-9 가-힣()]*$/.test(keyWord)) {
-                currentPage = 0;
-                hasMoreResults = true;
-                searchCards(keyWord, currentPage);
-            } else {
-                showMessage('유효하지 않은 입력입니다.');
-            }
-        });
+            searchInput.addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    var keyWord = document.getElementById('searchInput').value;
+                    if (/^[a-zA-Z0-9 가-힣()]*$/.test(keyWord)) {
+                        currentPage = 0;
+                        hasMoreResults = true;
+                        searchCards(keyWord, currentPage);
+                    } else {
+                        showMessage('유효하지 않은 입력입니다.');
+                    }
+                }
+            });
 
         document.getElementById('resetButton').addEventListener('click', function() {
             // Clear cardsContainer and extraDeck
@@ -609,7 +627,6 @@
                 var rotateY = -40 / 98 * x + 20;
                 var rotateX = 40 / 143 * y - 26;
 
-                console.log('x: ' + x + ', y: ' + y);
                 var bgPosX = (x / cardContainer.clientWidth) * 100;
                 var bgPosY = (y / cardContainer.clientHeight) * 100;
 
