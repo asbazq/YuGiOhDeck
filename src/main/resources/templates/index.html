@@ -15,7 +15,7 @@
         }
 
         .left-container, .right-container {
-            width: 75%;
+            width: 100%;
             min-height: 100vh; /* 최소 높이를 화면의 높이와 같게 설정 */
             height: auto; /* 컨테이너의 높이를 자동으로 조정 */
             display: flex;
@@ -31,11 +31,11 @@
         }
 
         .left-container {
-            width: 60%;
+            width: 80%;
         }
 
         .right-container {
-            width: 18%;
+            width: 20%;
             min-height: 100vh;
             height: auto;
             display: flex;
@@ -43,12 +43,13 @@
             justify-content: flex-start;
             align-items: center;
             overflow-y: auto;
+            position: relative; 
         }
 
         .cards {
             display: flex;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 10px;
             justify-content: center;
         }
 
@@ -74,7 +75,6 @@
             height: 100%;
             background: none;
             filter: brightness(1.1) opacity(0.8);
-            mix-blend-mode: color-dodge;
             transition: all 0.1s;
         }
 
@@ -86,12 +86,37 @@
             background-repeat: no-repeat;
         }
 
+        @media (max-width: 768px) {
+            .card-container {
+                max-width: 49px; 
+                max-height: 73px;
+            }
+
+            .card {
+                max-height: 73px; /* 최대 높이를 줄임 */
+            }
+
+
+        }
+
+
+        @media (max-width: 480px) {
+            .card-container {
+                max-width: 29.4px; /* 더 작은 화면에서 최대 너비를 줄임 */
+                max-height: 42.9px;
+            }
+
+            .card {
+                max-height: 42.9px; /* 최대 높이를 줄임 */
+            }
+        }
+
         .search-result-item {
             width: 70px;
-            min-height: 98px;
             height: auto;
             cursor: pointer;
             margin-bottom: -10px;
+            box-sizing: border-box;
         }
 
         .search-result-item img {
@@ -169,7 +194,7 @@
             height: 30px;
             width: 15%;
             top: 30px;
-            left: 73%;
+            right: 3%;
             padding: 10px;
             border: 1px solid #ced4da;
             border-radius: 5px 5px 5px 5px;
@@ -235,6 +260,7 @@
             font-size: 1em;
             transition: background-color 0.3s, box-shadow 0.3s;
             box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            z-index: 10;
         }
 
         button#resetButton:hover {
@@ -271,10 +297,20 @@
             margin-bottom: 20px;
             margin-right: auto;
         }
+
         
     </style>
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-HL4HGTHXLN"></script>
+    <script>
+        window.dataLayer = window.dataLayer || [];
+        function gtag(){dataLayer.push(arguments);}
+        gtag('js', new Date());
+
+        gtag('config', 'G-HL4HGTHXLN');
+    </script>
 </head>
-<body>
+<body>  
     <div id="cardDetailContainer" class="card-detail-container"></div>
     <div id="cardDetailDescContainer" class="card-detail-desc-container"></div>
     <div id="message">같은 카드는 3장만 추가 가능</div>
@@ -299,6 +335,7 @@
             <div id="searchLabel">    </div>
         <div class="cards" id="searchResult"></div>
     </div>
+    
 
     <div class="expanded-overlay"></div>
 
@@ -413,7 +450,6 @@
                 // var imgUrl = `/card_images/${result.imageUrl.split('/').pop()}`;
                 // var imgUrl = `https://myyugiohdeck.s3.ap-northeast-2.amazonaws.com/card_images/${result.imageUrl.split('/').pop()}`;
                 var imgUrl = `/images/${result.imageUrl.split('/').pop()}`;
-                console.log("이미지 URL : " + imgUrl);
 
                 var img = document.createElement('img');
                 img.src = imgUrl;
@@ -426,7 +462,6 @@
 
                 searchResultContainer.appendChild(itemDiv);
 
-                console.log("카드 추가 시 이름 : " + result.name);
                 itemDiv.addEventListener('click', function() {
                     addCardToLeftContainer(imgUrl, result.frameType, result.name);
                 });
@@ -463,15 +498,15 @@
                 showMessage('같은 카드는 3장만 추가 가능합니다');
                 return;
             }
-
+            
             var mainDeckCount = document.querySelectorAll('#cardsContainer .card-container').length;
-            if (mainDeckCount >= 60 && frameType !== 'link' && frameType !== 'fusion' && frameType !== 'synchro' && frameType !== 'xyz') {
+            if (mainDeckCount >= 60 && frameType !== 'link' && frameType !== 'fusion' && frameType !== 'synchro' && frameType !== 'xyz' && frameType !== 'xyz_pendulum' && frameType !== 'synchro_pendulum' && frameType !== 'fusion_pendulum') {
                 showMessage('메인 덱은 60장까지만 가능합니다.');
                 return;
             }
 
             var extraDeckCount = document.querySelectorAll('#extraDeck .card-container').length;
-            if (extraDeckCount >= 15 && (frameType == 'link' || frameType == 'fusion' || frameType == 'synchro' || frameType == 'xyz')) {
+            if (extraDeckCount >= 15 && (frameType == 'link' || frameType == 'fusion' || frameType == 'synchro' || frameType == 'xyz' || frameType == 'xyz_pendulum' || frameType == 'synchro_pendulum' || frameType == 'fusion_pendulum')) {
                 showMessage('엑스트라 덱은 15장까지만 가능합니다.');
                 return;
             }
@@ -485,7 +520,7 @@
             cardDiv.style.backgroundImage = 'url(' + imageUrl + ')';
 
             var targetContainer;
-            if (frameType === 'link' || frameType === 'fusion' || frameType === 'synchro' || frameType === 'xyz') {
+            if (frameType === 'link' || frameType === 'fusion' || frameType === 'synchro' || frameType === 'xyz' || frameType === 'xyz_pendulum' || frameType === 'synchro_pendulum' || frameType === 'fusion_pendulum') {
                 targetContainer = document.getElementById('extraDeck');
             } else {
                 targetContainer = document.getElementById('cardsContainer');
@@ -546,7 +581,6 @@
                 cardDetailDescContainer.textContent = data.korDesc;
                 cardDetailContainer.style.display = 'block';
                 cardDetailDescContainer.style.display = 'block';
-                console.log(data);
             })
             .catch(error => {
                 console.error('There has been a problem with your fetch operation:', error);
@@ -674,7 +708,6 @@
                     let overlay = cardContainer.querySelector('.overlay');
                     let card = cardContainer.querySelector('.card');
                     let cardName = card.style.backgroundImage.split('/').pop().split('.')[0]; // 이미지 URL에서 카드 이름 추출
-                    console.log("카드 이름 : " + cardName);
                     setupCardEvents(cardContainer, overlay, cardName);
                     
                     cardContainer.addEventListener('contextmenu', function(e) {
@@ -693,5 +726,6 @@
             }
         };
     </script>
+       
 </body>
 </html>
