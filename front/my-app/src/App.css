@@ -1,0 +1,294 @@
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        display: block;
+        justify-content: center;
+        color: #212122;
+        background-color: #e0e7ee;
+    }
+
+    .container {
+        display: flex;
+        justify-content: center;
+        width: 100%;
+        margin: 0 auto; /* 중앙 정렬 */
+        box-sizing: border-box;
+    }
+
+    .left-container, .right-container {
+        min-height: 100vh; /* 최소 높이를 화면의 높이와 같게 설정 */
+        height: auto; /* 컨테이너의 높이를 자동으로 조정 */
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-start;
+        align-items: center;
+        box-sizing: border-box;
+        padding: 14px;
+        background: #fbfdff;
+        border-radius: 10px;
+        margin: 5px;
+        box-sizing: border-box;
+        overflow-y: auto;
+    }
+
+    .left-container {
+        width: 80%;
+    }
+
+    .right-container {
+        width: 20%;
+        position: relative; 
+    }
+
+    .cards {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        justify-content: center;
+    }
+
+    .card-container {
+        width: 98px; /* 기존 220px에서 변경 */
+        height: 143px; /* 기존 310px에서 변경 */
+        position: relative;
+        perspective: 1000px;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        transition: transform 0.3s ease-out;
+    }
+
+
+    .card-container:hover {
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: none;
+        filter: brightness(1.1) opacity(0.8);
+        transition: all 0.1s;
+    }
+
+    .card {
+        width: 100%;
+        height: 100%;
+        background-size: contain;
+        background-position: center;
+        background-repeat: no-repeat;
+    }
+
+    @media (max-width: 768px) {
+        .card-container {
+            max-width: 49px; 
+            max-height: 73px;
+        }
+
+        .card {
+            max-height: 73px; /* 최대 높이를 줄임 */
+        }
+
+
+    }
+
+
+    @media (max-width: 480px) {
+        .card-container {
+            max-width: 29.4px; /* 더 작은 화면에서 최대 너비를 줄임 */
+            max-height: 42.9px;
+        }
+
+        .card {
+            max-height: 42.9px; /* 최대 높이를 줄임 */
+        }
+    }
+
+    .search-result-item {
+        width: 70px;
+        height: auto;
+        cursor: pointer;
+        margin-bottom: -10px;
+        box-sizing: border-box;
+    }
+
+    .search-result-item img {
+        width: 100%;
+        height: auto;
+    }
+
+    .search-result-item p {
+        text-align: center;
+        margin: 0 0 0 0;
+        font-size: 0.56em;
+        line-height: 1;
+    }
+
+    .expanded {
+        transform: scale(4);
+        z-index: 10;
+        position: fixed;
+        top: 50%;
+        left: 41%;
+        /* transform-origin: center center; */
+    }
+
+    .expanded-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.7);
+        z-index: 5;
+        display: none;
+    }
+
+
+    #message {
+        position: fixed;
+        top: 20px;
+        left: 41%;
+        transform: translateX(-50%);
+        background: #ffdddd;
+        color: #d8000c;
+        padding: 10px;
+        border: 1px solid #d8000c;
+        border-radius: 5px;
+        display: none;
+        z-index: 10;
+    }
+
+
+    #mainDeckLabel, #extraDeckLabel {
+        width: 100%;
+        text-align: left;
+        margin: 0 0 10px 0;
+        font-weight: bold;
+        font-size: 0.9em;
+        border-bottom: 2px solid #7e7c7c;
+        padding-bottom: 5px;
+    }
+
+    #searchLabel {
+        margin: 20px 0;
+    }
+
+    .divider {
+        width: 100%;
+        height: 2px;
+        background-color: #615e5e;
+        margin: 60px 0;
+    }
+
+    .search-container {
+        position: absolute; /* 절대 위치로 설정 */
+        top: 20px; /* 상단에서의 거리 설정 */
+        left: 50%; /* 중앙 정렬 */
+        transform: translateX(-50%); /* 중앙 정렬 보정 */
+        width: 80%; /* 원하는 너비 설정 */
+    }
+
+    .search-container input {
+        height: 30px;
+        width: 100%; /* 부모 컨테이너에 맞게 너비 설정 */
+        padding: 10px;
+        border: 1px solid #ced4da;
+        border-radius: 10px;
+        font-size: 1em;
+        outline: none;
+        background: rgba(207, 206, 206, 0.7);
+        color: #0e1f47;
+        transition: border-color 0.3s;
+    }
+    
+    .search-container input::placeholder {
+        color: #b0b3b8;
+    }
+
+    .search-container  input:hover {
+        background-color: #d0d1d4;
+    }
+
+    .search-container input:focus {
+        border-color: #14bcff;
+    }
+
+
+    .card-detail-container {
+        position: fixed;
+        top: 10%;
+        left: 41%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.7);
+        padding: 7px;
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+        display: none;
+        z-index: 15;
+    }
+
+    .card-detail-desc-container {
+        position: fixed;
+        top: 85%;
+        left: 41%;
+        transform: translateX(-50%);
+        background: rgba(255, 255, 255, 0.5); /* 50% 투명도 */
+        padding: 7px;
+        border-radius: 10px;
+        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+        display: none;
+        z-index: 15;
+    }
+
+    button#resetButton {
+        position: fixed;
+        bottom: 20px; /* 화면 하단에서의 거리 */
+        right: 20px; /* 화면 우측에서의 거리 */
+        padding: 10px 20px;
+        background-color: #3b5998;
+        border: none;
+        color: white;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 1em;
+        transition: background-color 0.3s, box-shadow 0.3s;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        z-index: 10;
+    }
+
+    button#resetButton:hover {
+        background-color: #2d4373;
+        box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+    }
+
+
+    .contact-info:hover {
+        text-decoration: underline;
+    }
+
+    #cardDetailContainer {
+        font-weight: bold;
+        font-size: 1.2em;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+
+    #title {
+        font-size: 24px;
+        font-weight: bold;
+        margin-bottom: 10px;
+    }
+
+    .description {
+        font-size: 14px;
+        margin-bottom: 20px;
+    }
+
+    .contact-info {
+        font-size: 12px;
+        color: #666;
+        margin-bottom: 20px;
+        margin-right: auto;
+    }
