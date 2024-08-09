@@ -6,6 +6,7 @@ import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,6 +18,7 @@ import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.model.CardImage;
 import com.card.Yugioh.model.CardModel;
+import com.card.Yugioh.model.RaceEnum;
 import com.card.Yugioh.repository.CardImgRepository;
 import com.card.Yugioh.repository.CardRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -258,7 +260,7 @@ public class CardService {
 
         for (CardModel cardModel : cardModels) {
             String cardName = cardModel.getName();
-            if (cardRepository.findByName(cardName).getKorName() != null) {
+            if (cardRepository.findByName(cardName).getKorName() != null && cardRepository.findByName(cardName).getKorDesc() != null) {
                 continue;
             }
             try {
@@ -273,19 +275,28 @@ public class CardService {
                 Document doc = Jsoup.connect(completeUrl).get();
                 // 카드 정보가 있는 테이블
                 Element korName = doc.selectFirst("td.cardtablerowdata > span[lang=ko]");
-                // 정확한 셀렉터를 사용하여 koreanDescription 찾기
-                Element KorDesc = doc.selectFirst("td.navbox-list > span[lang=ko]");
-
-                if (KorDesc != null) {
+                Element korDesc = doc.selectFirst("td.navbox-list > span[lang=ko]");
+                if (korDesc != null) {
                     // koreanDescription이 성공적으로 찾아졌을 때의 처리
-                    log.info("효과 : {}", KorDesc.text());
-                    cardModel.setKorDesc(KorDesc.text());
+                    log.info("효과 : {}", korDesc.text());
+                    cardModel.setKorDesc(korDesc.text());
                 } else {
-                    // koreanDescription을 찾지 못했을 때의 처리
-                    log.info("한국어 설명을 찾을 수 없습니다.");
-                    cardModel.setKorDesc(cardModel.getDesc());
+                    // 펜듈럼 카드일 경우
+                    Elements PendulumKorDescs = doc.select("td.navbox-list dd > span[lang=ko]");
+                    StringBuilder combinedKorDesc = new StringBuilder();
+                    for (Element PendulumKorDesc : PendulumKorDescs) {
+                        if (PendulumKorDesc != null) {
+                            log.info("효과 : {}", PendulumKorDesc.text());
+                            combinedKorDesc.append(PendulumKorDesc.text()).append("\n");
+                        }
+                    }
+
+                    if (combinedKorDesc.length() > 0) {
+                        cardModel.setKorDesc(combinedKorDesc.toString().trim());
+                    } else {
+                        log.info("한국어 설명을 찾을 수 없습니다.");
+                    }
                 }
-    
                 if (korName != null) {
                     // koreanDescription이 성공적으로 찾아졌을 때의 처리
                     log.info("이름 : {}", korName.text());
@@ -293,7 +304,6 @@ public class CardService {
                 } else {
                     // koreanDescription을 찾지 못했을 때의 처리
                     log.info("한국어 이름을 찾을 수 없습니다.");
-                    cardModel.setKorName(cardModel.getName());
                 }
 
                 cardRepository.save(cardModel);
@@ -306,17 +316,24 @@ public class CardService {
     }
 
     public CardInfoDto getCardInfo(String cardName) {
+        String korDesc = "";
         if (Pattern.matches("\\d+", cardName)) {
                 Long cardId = (long) Integer.parseInt(cardName);
                 CardImage cardImage = cardImgRepository.findById(cardId).orElseThrow(
                     () -> new IllegalArgumentException("해당 카드가 존재하지 않습니다.")
                 );
-                cardName = cardImage.getCardModel().getKorName();
+                if (cardImage.getCardModel().getKorName() != null) cardName = cardImage.getCardModel().getKorName();
             }
             CardModel cardModel = cardRepository.findByKorName(cardName).orElseThrow(
                 () -> new IllegalArgumentException("해당 카드가 존재하지 않습니다.")
             );
-            String korDesc = cardModel.getKorDesc();
-        return new CardInfoDto(cardName, korDesc);
+            if (cardModel.getKorDesc() == null) {
+                korDesc = cardModel.getDesc();
+            } else {
+                korDesc = cardModel.getKorDesc();
+            }
+        String enRace = cardModel.getRace();
+        RaceEnum korRace = RaceEnum.valueOf(enRace);
+        return new CardInfoDto(cardName, korDesc, korRace.getRace());
     }
 }
