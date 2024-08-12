@@ -18,9 +18,11 @@ import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.model.CardImage;
 import com.card.Yugioh.model.CardModel;
+import com.card.Yugioh.model.LimitRegulation;
 import com.card.Yugioh.model.RaceEnum;
 import com.card.Yugioh.repository.CardImgRepository;
 import com.card.Yugioh.repository.CardRepository;
+import com.card.Yugioh.repository.LimitRegulationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import lombok.RequiredArgsConstructor;
@@ -42,6 +44,7 @@ import java.net.HttpURLConnection;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class CardService {
     // sort - 카드 정렬 (atk, def, name, type, level, id, new).
     // 최신 카드 5장
@@ -54,15 +57,9 @@ public class CardService {
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
+    private final LimitRegulationRepository limitRegulationRepository;
     // private final AmazonS3 s3Client;
     // private String bucket;
-
-    public CardService(CardRepository cardRepository, CardImgRepository cardImgRepository) {
-        // this.s3Client = s3Client;
-        this.cardRepository = cardRepository;
-        this.cardImgRepository = cardImgRepository;
-        // this.bucket = bucket;
-    }
 
     // public void fetchAndSaveCardImages() throws IOException {
     //     String response = Request.get(apiUrl)
@@ -317,6 +314,7 @@ public class CardService {
 
     public CardInfoDto getCardInfo(String cardName) {
         String korDesc = "";
+        String restrictionType = "unlimited";
         if (Pattern.matches("\\d+", cardName)) {
                 Long cardId = (long) Integer.parseInt(cardName);
                 CardImage cardImage = cardImgRepository.findById(cardId).orElseThrow(
@@ -334,6 +332,42 @@ public class CardService {
             }
         String enRace = cardModel.getRace();
         RaceEnum korRace = RaceEnum.valueOf(enRace);
-        return new CardInfoDto(cardName, korDesc, korRace.getRace());
+        LimitRegulation limitRegulation = limitRegulationRepository.findByCardName(cardName);
+        if (limitRegulation != null) {
+            restrictionType = limitRegulation.getRestrictionType();
+        }
+        return new CardInfoDto(cardName, korDesc, korRace.getRace(), restrictionType);
+    }
+
+    public void limitCrawl() {
+        limitRegulationRepository.deleteAll();
+        try {
+            String completeUrl = "https://www.db.yugioh-card.com/yugiohdb/forbidden_limited.action?request_locale=ko";
+            Document doc = Jsoup.connect(completeUrl).get();
+            Elements banCards = doc.select("#list_forbidden .t_body .t_row.c_simple .inside .card_name.flex_1 .name");
+            for (Element card : banCards) {
+                LimitRegulation limitRegulation = new LimitRegulation();
+                limitRegulation.setCardName(card.text());
+                limitRegulation.setRestrictionType("Ban");
+                limitRegulationRepository.save(limitRegulation);
+            }
+            Elements limitCards = doc.select("#list_limited .t_body .t_row.c_simple .inside .card_name.flex_1 .name");
+            for (Element card : limitCards) {
+                LimitRegulation limitRegulation = new LimitRegulation();
+                limitRegulation.setCardName(card.text());
+                limitRegulation.setRestrictionType("limit");
+                limitRegulationRepository.save(limitRegulation);
+            }
+            Elements semiLimitCards = doc.select("#list_semi_limited .t_body .t_row.c_simple .inside .card_name.flex_1 .name");
+            for (Element card : semiLimitCards) {
+                LimitRegulation limitRegulation = new LimitRegulation();
+                limitRegulation.setCardName(card.text());
+                limitRegulation.setRestrictionType("semiLimit");
+                limitRegulationRepository.save(limitRegulation);
+            }
+
+        } catch (IOException e) {
+            log.error("데이터를 가져오는 중 오류가 발생했습니다.", e);
+        }
     }
 }
