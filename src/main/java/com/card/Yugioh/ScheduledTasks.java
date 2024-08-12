@@ -40,5 +40,6 @@ public class ScheduledTasks {
             e.printStackTrace();
         }
         cardService.crawlAll();
+        cardService.limitCrawl();
     }
 }
