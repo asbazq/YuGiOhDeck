@@ -35,11 +35,11 @@ import javax.imageio.ImageIO;
 @RequiredArgsConstructor
 @RestController
 public class ImageService {
-    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=10&offset=0&sort=name";
+    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=100&offset=0&sort=new";
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
-    private final Path savePath = Paths.get("D:\\Project\\card_images");
+    private final Path savePath = Paths.get("/home/d568/Desktop/yugioh/card_images");
     
     public void fetchAndSaveCardImages() throws IOException {
         String response = Request.get(apiUrl)
