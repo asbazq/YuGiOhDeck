@@ -1,19 +1,21 @@
 package com.card.Yugioh.service;
 
-import org.apache.hc.client5.http.fluent.Request;
-import org.json.JSONArray;
-import org.json.JSONObject;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
-import org.springframework.beans.factory.annotation.Value;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.WebElement;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.chrome.ChromeOptions;
+import org.openqa.selenium.support.ui.ExpectedConditions;
+import org.openqa.selenium.support.ui.Select;
+import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.PutObjectRequest;
 import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.model.CardImage;
@@ -23,24 +25,20 @@ import com.card.Yugioh.model.RaceEnum;
 import com.card.Yugioh.repository.CardImgRepository;
 import com.card.Yugioh.repository.CardRepository;
 import com.card.Yugioh.repository.LimitRegulationRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
+import io.github.bonigarcia.wdm.WebDriverManager;
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.URL;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.time.LocalDate;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
-import java.net.URLDecoder;
-import java.net.HttpURLConnection;
 
 @Slf4j
 @Service
@@ -58,8 +56,24 @@ public class CardService {
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
     private final LimitRegulationRepository limitRegulationRepository;
+    private WebDriver driver;
     // private final AmazonS3 s3Client;
     // private String bucket;
+
+    @PostConstruct
+    public void setup() {
+        // WebDriverManager를 사용하여 ChromeDriver를 자동으로 관리
+        // WebDriverManager.chromedriver().setup();
+        WebDriverManager.chromedriver().browserVersion("127.0.6533.120").setup();
+
+        // 브라우저를 headless 모드로 설정
+        ChromeOptions options = new ChromeOptions();
+        options.addArguments("--headless"); // 브라우저 창을 표시하지 않음
+        options.addArguments("--no-sandbox");
+        options.addArguments("--disable-dev-shm-usage");
+
+        driver = new ChromeDriver(options);
+    }
 
     // public void fetchAndSaveCardImages() throws IOException {
     //     String response = Request.get(apiUrl)
@@ -342,32 +356,58 @@ public class CardService {
     public void limitCrawl() {
         limitRegulationRepository.deleteAll();
         try {
-            String completeUrl = "https://www.db.yugioh-card.com/yugiohdb/forbidden_limited.action?request_locale=ko";
-            Document doc = Jsoup.connect(completeUrl).get();
-            Elements banCards = doc.select("#list_forbidden .t_body .t_row.c_simple .inside .card_name.flex_1 .name");
-            for (Element card : banCards) {
-                LimitRegulation limitRegulation = new LimitRegulation();
-                limitRegulation.setCardName(card.text());
-                limitRegulation.setRestrictionType("Ban");
-                limitRegulationRepository.save(limitRegulation);
-            }
-            Elements limitCards = doc.select("#list_limited .t_body .t_row.c_simple .inside .card_name.flex_1 .name");
-            for (Element card : limitCards) {
-                LimitRegulation limitRegulation = new LimitRegulation();
-                limitRegulation.setCardName(card.text());
-                limitRegulation.setRestrictionType("limit");
-                limitRegulationRepository.save(limitRegulation);
-            }
-            Elements semiLimitCards = doc.select("#list_semi_limited .t_body .t_row.c_simple .inside .card_name.flex_1 .name");
-            for (Element card : semiLimitCards) {
-                LimitRegulation limitRegulation = new LimitRegulation();
-                limitRegulation.setCardName(card.text());
-                limitRegulation.setRestrictionType("semiLimit");
-                limitRegulationRepository.save(limitRegulation);
-            }
+             // 웹 페이지 열기
+            driver.get("https://ygoprodeck.com/banlist/");
 
-        } catch (IOException e) {
+            Thread.sleep(2000);
+
+            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+            WebElement banlistTypeElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banlisttype")));
+            // 'banlisttype'을 'Master Duel'로 설정
+            Select banlistTypeSelect = new Select(banlistTypeElement);
+            banlistTypeSelect.selectByValue("Master Duel");
+
+            // 'banlistdate'를 최신 날짜로 설정
+            WebElement banlistDateElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banlistdate")));
+            Select banlistDateSelect = new Select(banlistDateElement);
+            banlistDateSelect.selectByIndex(0);  // 최신 항목을 선택
+
+            // 'textView' 버튼 클릭
+            WebElement textView = wait.until(ExpectedConditions.elementToBeClickable(By.id("textButton")));
+            textView.click();
+
+             // 데이터를 가져올 시간을 확보하기 위해 잠시 대기
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banned")));
+
+            scrapeListData("banned");
+            scrapeListData("limited");
+            scrapeListData("semilimited");
+
+        } catch (Exception e) {
             log.error("데이터를 가져오는 중 오류가 발생했습니다.", e);
+            e.printStackTrace();
+        } finally {
+            // 브라우저 닫기
+            driver.quit();
+        }
+    }
+
+    private void scrapeListData(String listId) {
+        try {
+            WebElement listElement = driver.findElement(By.id(listId));
+            List<WebElement> spans = listElement.findElements(By.xpath(".//span"));
+            for (WebElement span : spans) {
+                List<WebElement> strongElements = span.findElements(By.xpath(".//span[1]/span[1]/a/strong"));
+                for (WebElement strong : strongElements) {
+                    LimitRegulation limitRegulation = new LimitRegulation();
+                    limitRegulation.setCardName(strong.getText());
+                    limitRegulation.setRestrictionType("listId");
+                    limitRegulationRepository.save(limitRegulation);
+                }
+            }
+        } catch (Exception e) {
+            log.error("리스트 " + listId + " 데이터를 가져오는 중 오류가 발생했습니다.", e);
+            e.printStackTrace();
         }
     }
 }
