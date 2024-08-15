@@ -20,7 +20,7 @@ public class LimitRegulation {
     private String cardName;
 
     @Column(nullable = false)
-    private String restrictionType;  // 'Ban', 'Limit', 'SemiLimit'
+    private String restrictionType;  // 'banned', 'limited', 'semiLimited'
 
     public void setCardName(String cardName) {
         this.cardName = cardName;
