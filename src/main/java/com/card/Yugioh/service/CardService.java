@@ -353,6 +353,7 @@ public class CardService {
         return new CardInfoDto(cardName, korDesc, korRace.getRace(), restrictionType);
     }
 
+    // 리미티드 레귤레이션 크롤링
     public void limitCrawl() {
         limitRegulationRepository.deleteAll();
         try {
@@ -399,6 +400,7 @@ public class CardService {
             for (WebElement span : spans) {
                 List<WebElement> strongElements = span.findElements(By.xpath(".//span[1]/span[1]/a/strong"));
                 for (WebElement strong : strongElements) {
+                    log.info("{} 리스트 : {}", listId, strong.getText());
                     LimitRegulation limitRegulation = new LimitRegulation();
                     limitRegulation.setCardName(strong.getText());
                     limitRegulation.setRestrictionType("listId");

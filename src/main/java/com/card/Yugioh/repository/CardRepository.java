@@ -26,4 +26,5 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     Optional<CardModel> findByKorName(String korName);
     
     List<CardModel> findByCreatedAtAfter(LocalDateTime localDateTime);
+    boolean existsByName(String name);
 }
