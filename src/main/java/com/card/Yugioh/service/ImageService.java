@@ -117,7 +117,7 @@ public class ImageService {
 
     public void saveCardInfo(List<CardModel> cardModels) {
         for (CardModel cardModel : cardModels) {
-            if (cardRepository.existsById(cardModel.getId())) {
+            if (cardRepository.existsById(cardModel.getId()) || cardRepository.existsByName(cardModel.getName())) {
                 log.info("카드 {} 는 DB에 이미 존재합니다. 저장을 건너뜁니다.", cardModel.getName());
                 continue;
             }
