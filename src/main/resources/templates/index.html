@@ -298,7 +298,32 @@
             margin-right: auto;
         }
 
-        
+        #queueStatusContainer {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            z-index: 20;
+        }
+
+        #queueStatusContainer h2 {
+            margin: 0 0 10px 0;
+        }
+
+        #queueStatusContainer ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        #queueStatusContainer li {
+            margin: 5px 0;
+        }
+
     </style>
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-HL4HGTHXLN"></script>
@@ -326,6 +351,13 @@
         <script src="https://cdn.jsdelivr.net/npm/pako@1.0.11/dist/pako.min.js"></script>
     </div>
 
+    <div id="queueStatusContainer">
+        <h2>대기열 상태</h2>
+        <ul id="queueList"></ul>
+        <button onclick="enterSite()">사이트 입장</button>
+        <button onclick="exitSite()">사이트 나가기</button>
+    </div>
+
     <div class="right-container">
         <div class="search-container">
             <input type="search" name="search" id="searchInput" placeholder="eg: Dark Magician">
@@ -340,6 +372,34 @@
     <div class="expanded-overlay"></div>
 
     <script>
+        // WebSocket 연결 설정
+        let userId = 'user_' + Math.random().toString(36).substr(2, 9);
+        let socket = new WebSocket("ws://localhost:8080/queue");
+
+        socket.onmessage = function(event) {
+            let message = event.data;
+            let queueList = document.getElementById('queueList');
+            let listItem = document.createElement('li');
+            listItem.textContent = message;
+            queueList.appendChild(listItem);
+        };
+
+        function enterSite() {
+            fetch(`/enter?userId=${userId}`)
+                .then(response => response.text())
+                .then(data => {
+                    alert(data);
+                });
+        }
+
+        function exitSite() {
+            fetch(`/exit?userId=${userId}`)
+                .then(response => response.text())
+                .then(data => {
+                    alert(data);
+                });
+        }
+        
         let currentPage = 0;
         let isLoading = false;
         let hasMoreResults = true;

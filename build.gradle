@@ -45,6 +45,11 @@ dependencies {
 	implementation 'org.hibernate.orm:hibernate-core:6.5.2.Final'
 	implementation 'org.seleniumhq.selenium:selenium-java:4.23.0'
     implementation 'io.github.bonigarcia:webdrivermanager:5.9.2'
+	
+	implementation 'org.springframework.boot:spring-boot-starter-websocket'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+    implementation 'redis.clients:jedis:4.4.3' // Redis 클라이언트 (Jedis)
+	
 }
 
 tasks.named('test') {
