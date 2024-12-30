@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Queue Management</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .queue-container {
+            background: #fff;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            width: 300px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        #queuePosition {
+            font-size: 18px;
+            margin: 20px 0;
+            padding: 10px;
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="queue-container">
+        <h1>Queue Status</h1>
+        <div id="queuePosition">You are at position: --</div>
+    </div>
+
+    <script>
+        let isEnterCalled = false; // 중복 호출 방지 플래그
+        let socketInitialized = false; // WebSocket 초기화 방지 플래그
+
+        document.addEventListener("DOMContentLoaded", function () {
+
+            // 대기열 상태 브로드캐스트 호출
+            setTimeout(() => {
+                fetch("/getBroadcastQueueStatus")
+                    .then(() => console.log("대기열 상태 브로드캐스트 호출"))
+                    .catch((error) => console.error("대기열 상태 브로드캐스트 호출 에러 :", error));
+            }, 500);
+            
+            const userId = sessionStorage.getItem("userId");
+            if (userId) {
+                console.log("존재하는 User ID :", userId);
+                initializeWebSocket(); // 기존 ID로 WebSocket 초기화
+            } else {
+                enterSite(); // 새로운 userId 생성
+            }
+        });
+
+        function enterSite() {
+            if (isEnterCalled) {
+                console.log("isEnterCalled = true");
+                return;
+            }
+
+            isEnterCalled = true; // 요청 상태 설정
+
+            setTimeout(() => {
+                fetch("/enter")
+                    .then((response) => response.json())
+                    .then((data) => {
+                        console.log("User ID:", data.userId);
+                        console.log("Redirect URL:", data.redirectUrl);
+
+                        // sessionStorage에 사용자 ID 저장
+                        sessionStorage.setItem("userId", data.userId);
+
+                        // 리다이렉션 수행
+                        if (!window.location.pathname.includes(data.redirectUrl)) {
+                            console.log("리다이렉션 :", data.redirectUrl);
+                            window.location.replace(data.redirectUrl);
+                        } else {
+                            initializeWebSocket(); // WebSocket 초기화
+                        }
+                    })
+                    .catch((error) => console.error("/enter 패치 에러:", error))
+                    .finally(() => {
+                        isEnterCalled = false; // 요청 상태 플래그 해제
+                    });
+            }, 1000); // 딜레이 적용 (1000ms)
+        }
+
+        function initializeWebSocket() {
+            if (socketInitialized) {
+                console.log("socketInitialized = true");
+                return;
+            }
+
+            socketInitialized = true;
+
+            let socket = new WebSocket("ws://localhost:8080/queue");
+
+            socket.onmessage = function (event) {
+                let message = JSON.parse(event.data);
+                console.log("메세지:", message);
+
+                if (message.action === "position" && message.userId === getCurrentUserId()) {
+                    let queuePosition = document.getElementById("queuePosition");
+                    queuePosition.textContent = `대기열: ${message.position}`;
+                } else if (message.action === "redirect" && message.userId === getCurrentUserId()) {
+                    window.location.href = message.url;
+                }
+            };
+
+            socket.onopen = function () {
+                console.log("WebSocket 연결");
+            };
+
+            socket.onclose = function () {
+                console.log("WebSocket 연결 종료");
+                delete window.socket;
+            };
+
+            socket.onerror = function (error) {
+                console.error("WebSocket 에러:", error);
+            };
+        }
+
+        function getCurrentUserId() {
+            return sessionStorage.getItem("userId") || "unknown";
+        }
+
+        // 창 닫기 또는 새로고침 이벤트 처리
+        window.onbeforeunload = function () {
+        const userId = sessionStorage.getItem("userId");
+        const navigationType = performance.getEntriesByType("navigation")[0]?.type;
+
+        if (userId && navigationType !== "navigate") { // "navigate"는 최초 접속으로 간주
+            const isRefresh = navigationType === "reload";
+            const url = "/exit";
+            const data = new URLSearchParams({ userId: userId, refresh: isRefresh });
+
+            const success = navigator.sendBeacon(url, data);
+            if (success) {
+                console.log("Exit 요청");
+            } else {
+                console.error("Exit 실패");
+            }
+        }
+    };
+
+    </script>
+</body>
+</html>
