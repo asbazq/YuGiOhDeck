@@ -43,8 +43,8 @@
 </head>
 <body>
     <div class="queue-container">
-        <h1>Queue Status</h1>
-        <div id="queuePosition">You are at position: --</div>
+        <h1>대기열</h1>
+        <div id="queuePosition">대기 순번: --</div>
     </div>
 
     <script>
@@ -62,9 +62,20 @@
             
             const userId = sessionStorage.getItem("userId");
             if (userId) {
-                console.log("존재하는 User ID :", userId);
+                const isInitialRedirect = sessionStorage.getItem("isInitialRedirect") === "true";
+                if (isInitialRedirect) {
+                    console.log("리다이렉션 완료 상태 감지. 최초 접속 상태 초기화.");
+                    console.log("User Id : " + userId);
+                    sessionStorage.setItem("isInitialRedirect", "false");
+                    sessionStorage.setItem("isInitialLoad", "false"); // 최초 접속 아님
+                } else {
+                    console.log("기존 userId 감지:", userId);
+                    sessionStorage.setItem("isInitialLoad", "false"); // 최초 접속 아님
+                }
                 initializeWebSocket(); // 기존 ID로 WebSocket 초기화
             } else {
+                console.log("최초 접속 User ID");
+                sessionStorage.setItem("isInitialLoad", "true"); // 최초 접속 플래그 설정
                 enterSite(); // 새로운 userId 생성
             }
         });
@@ -90,8 +101,11 @@
                         // 리다이렉션 수행
                         if (!window.location.pathname.includes(data.redirectUrl)) {
                             console.log("리다이렉션 :", data.redirectUrl);
+                            sessionStorage.setItem("isInitialRedirect", "true");
                             window.location.replace(data.redirectUrl);
                         } else {
+                            sessionStorage.setItem("isInitialRedirect", "false");
+                            console.log("현재 페이지 유지. WebSocket 초기화.");
                             initializeWebSocket(); // WebSocket 초기화
                         }
                     })
@@ -118,7 +132,7 @@
 
                 if (message.action === "position" && message.userId === getCurrentUserId()) {
                     let queuePosition = document.getElementById("queuePosition");
-                    queuePosition.textContent = `대기열: ${message.position}`;
+                    queuePosition.textContent = `대기 순번: ${message.position}`;
                 } else if (message.action === "redirect" && message.userId === getCurrentUserId()) {
                     window.location.href = message.url;
                 }
@@ -142,25 +156,34 @@
             return sessionStorage.getItem("userId") || "unknown";
         }
 
-        // 창 닫기 또는 새로고침 이벤트 처리
-        window.onbeforeunload = function () {
-        const userId = sessionStorage.getItem("userId");
-        const navigationType = performance.getEntriesByType("navigation")[0]?.type;
+    let isExitCalled = false;
 
-        if (userId && navigationType !== "navigate") { // "navigate"는 최초 접속으로 간주
-            const isRefresh = navigationType === "reload";
+    window.onbeforeunload = function () {
+            if (isExitCalled) {
+                console.log("Exit 중복 실행 방지.");
+                return;
+            }
+
+            const userId = sessionStorage.getItem("userId");
+            const isInitialLoad = sessionStorage.getItem("isInitialLoad") === "true";
+            const isInitialRedirect = sessionStorage.getItem("isInitialRedirect") === "true";
+
+            if (!userId || isInitialLoad || isInitialRedirect) {
+                console.log("최초 접속 또는 리다이렉션 상태로 Exit 요청 생략.");
+                sessionStorage.setItem("isInitialLoad", "false");
+                sessionStorage.setItem("isInitialRedirect", "false");
+                return;
+            }
+
+            const isRefresh = performance.navigation.type === performance.navigation.TYPE_RELOAD;
             const url = "/exit";
             const data = new URLSearchParams({ userId: userId, refresh: isRefresh });
 
+            // `sendBeacon` 우선 실행
             const success = navigator.sendBeacon(url, data);
-            if (success) {
-                console.log("Exit 요청");
-            } else {
-                console.error("Exit 실패");
-            }
-        }
-    };
-
+            console.log("SendBeacon으로 Exit 요청 성공");
+            isExitCalled = true; // 플래그 설정
+        };
     </script>
 </body>
 </html>

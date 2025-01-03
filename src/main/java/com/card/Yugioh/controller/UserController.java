@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.card.Yugioh.service.QueueService;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.extern.log4j.Log4j2;
 
@@ -55,30 +56,29 @@ public class UserController {
         queueService.broadcastQueueStatus();
     }
 
-
-    // @GetMapping("/exit")
-    // public String exitSite(@RequestParam("userId") String userId) {
-    //     log.info("exit userId : {}", userId);
-    //     if (userId != null && !userId.isEmpty()) {
-    //         queueService.removeConnectedUser(userId); // 접속 인원 관리
-    //         queueService.removeUserFromQueue(userId); // 대기열에서 제거
-    //         return "User " + userId + " has exited the site.";
-    //     }
-    //     return "Invalid userId.";
-    // }
     @PostMapping("/exit")
-    public ResponseEntity<String> exitSite(@RequestParam("userId") String userId, @RequestParam("refresh") boolean isRefresh) {
-        log.info("Processing POST exit for userId: {}, isRefresh: {}", userId, isRefresh);
-    
+    public ResponseEntity<String> exitSite(@RequestParam("userId") String userId, @RequestParam("refresh") String isRefreshStr) {
+        boolean isRefresh = Boolean.parseBoolean(isRefreshStr);
+        log.info("exit 실행 userId: {}, isRefresh: {}", userId, isRefresh);
+
         if (userId == null || userId.isEmpty()) {
-            return ResponseEntity.badRequest().body("Invalid userId.");
+            return ResponseEntity.badRequest().body("사용자 없음");
+        }
+
+        if (!queueService.isConnectedUser(userId) && !queueService.isInQueue(userId)) {
+            log.warn("사용자 {} 는 접속 , 대기 상태가 아님", userId);
+            return ResponseEntity.badRequest().body("유효한 상태의 사용자가 아님");
         }
     
         if (isRefresh) {
             // 새로고침인 경우 기존 ID 제거
-            queueService.removeConnectedUser(userId);
-            queueService.removeUserFromQueue(userId);
-            log.info("User {} removed due to refresh.", userId);
+            if (queueService.isConnectedUser(userId)) {
+                queueService.removeConnectedUser(userId);
+            } else {
+                queueService.removeUserFromQueue(userId);
+            }
+            queueService.handleUserEntry(userId);
+            log.info("새로고침으로 사용자 재입장", userId);
         } else {
             // 창 닫기인 경우 단순히 제거
             if (queueService.isConnectedUser(userId)) {
@@ -86,9 +86,10 @@ public class UserController {
             } else {
                 queueService.removeUserFromQueue(userId);
             }
+            log.info("창 닫기 사용자 {} 삭제", userId);
         }
     
-        return ResponseEntity.ok("User " + userId + " has exited.");
+        return ResponseEntity.ok("사용자 " + userId + " 나감");
     }
     
 }

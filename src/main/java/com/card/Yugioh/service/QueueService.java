@@ -40,9 +40,9 @@ public class QueueService {
 
         try {
             // 중복 확인 및 처리
-            if (redisTemplate.opsForSet().isMember(CONNECTED_USERS_KEY, userId)) {
+            if (isConnectedUser(userId)) {
                 log.warn("User {} is already connected.", userId);
-                return "/index.html";
+                return "";
             }
 
             List<Object> queue = redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
@@ -57,7 +57,7 @@ public class QueueService {
             if (connectedUsers < MAX_USERS) {
                 addConnectedUser(userId);
                 grantAccess(userId);
-                return "/index.html";
+                return "";
             } else {
                 addUserToQueue(userId);
                 return "/queue.html";
@@ -75,7 +75,7 @@ public class QueueService {
 
     
     public void addConnectedUser(String userId) {
-        if (!redisTemplate.opsForSet().isMember(CONNECTED_USERS_KEY, userId)) {
+        if (!isConnectedUser(userId)) {
             redisTemplate.opsForSet().add(CONNECTED_USERS_KEY, userId);
             broadcastQueueStatus();
             log.info("Added user {} to connected users.", userId);
@@ -89,8 +89,59 @@ public class QueueService {
         redisTemplate.opsForSet().remove(CONNECTED_USERS_KEY, userId);
         broadcastQueueStatus();
         log.info("사용자 제거 결과: " + userId + " - 현재 접속 인원: " + getConnectedUsersCount());
+        moveUser();
     }
 
+    // private synchronized void moveUser() {
+    //     long connectedUsers = getConnectedUsersCount();
+    //     // 대기열의 다음 사용자에게 권한 부여
+    //     if (connectedUsers < MAX_USERS) {
+    //         String nextUser = (String) redisTemplate.opsForList().rightPop(QUEUE_KEY);
+    //         if (nextUser != null) {
+    //             addConnectedUser(nextUser); // 새 사용자 접속 처리
+    //             grantAccess(nextUser);
+    //             log.info("대기열 사용자 {} 이동", nextUser);
+    //         }
+    //     }
+    // }
+
+    private void moveUser() {
+        String lockKey = "queue_move_lock";
+        String lockValue = UUID.randomUUID().toString();
+    
+        // Redis 락 설정 (10초 유효)
+        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, Duration.ofSeconds(10));
+        if (acquired == null || !acquired) {
+            log.info("Another process is already handling the queue.");
+            return;
+        }
+    
+        try {
+            long connectedUsers = getConnectedUsersCount();
+            log.info("Processing next user in queue. Current connected users: {}", connectedUsers);
+    
+            if (connectedUsers < MAX_USERS) {
+                String nextUser = (String) redisTemplate.opsForList().rightPop(QUEUE_KEY);
+                if (nextUser != null) {
+                    addConnectedUser(nextUser);
+                    grantAccess(nextUser);
+                    log.info("User {} moved from queue to connected users.", nextUser);
+                } else {
+                    log.info("No users in queue to process.");
+                }
+            } else {
+                log.info("No available slots for new users.");
+            }
+        } finally {
+            // 락 해제
+            Object currentValue = redisTemplate.opsForValue().get(lockKey);
+            if (lockValue.equals(currentValue)) {
+                redisTemplate.delete(lockKey);
+            }
+        }
+    }
+
+    
     public long getConnectedUsersCount() {
         return redisTemplate.opsForSet().size(CONNECTED_USERS_KEY);
     }
@@ -103,11 +154,11 @@ public class QueueService {
         List<Object> queue = redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
         if (!queue.contains(userId)) {
             redisTemplate.opsForList().rightPush(QUEUE_KEY, userId);
-            log.info("Added user {} to queue.", userId);
+            log.info("대기열 사용자 {} 추가", userId);
             broadcastQueueStatus(); // 대기열 상태 갱신
             log.info("현재 대기열 인원 {}", getQueueUserCount());
         } else {
-            log.warn("User {} is already in the queue.", userId);
+            log.warn("이미 존재하는 사용자 {}", userId);
         }
     }
     
@@ -120,15 +171,9 @@ public class QueueService {
             broadcastQueueStatus(); // 대기열 상태 변경 시 브로드캐스트
             log.info("현재 대기열 인원 {}", getQueueUserCount());
         } else {
-            log.warn("User {} was not in the queue.", userId);
+            log.warn("사용자 {} 는 대기열에 없음", userId);
         }
 
-        // 대기열의 다음 사용자에게 권한 부여
-        String nextUser = (String) redisTemplate.opsForList().rightPop(QUEUE_KEY);
-        if (nextUser != null && getConnectedUsersCount() < MAX_USERS) {
-            grantAccess(nextUser);
-            addConnectedUser(nextUser); // 새 사용자 접속 처리
-        }
     }
 
     private void grantAccess(String userId) {
@@ -141,31 +186,14 @@ public class QueueService {
         return redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
     }
 
-    public long getQueuePosition(String userId) {
-        List<Object> queue = redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
-        return queue.indexOf(userId) + 1; // 1-based index
-    }
-
-    public void moveToQueue(String userId) {
-        if (redisTemplate.opsForSet().isMember(CONNECTED_USERS_KEY, userId)) {
-            redisTemplate.opsForSet().remove(CONNECTED_USERS_KEY, userId);
-            addUserToQueue(userId);
-            log.info("Moved connected user {} to queue.", userId);
-        }
-    }
-
-    public void refreshQueuePosition(String userId) {
-        if (redisTemplate.opsForList().remove(QUEUE_KEY, 1, userId) > 0) {
-            redisTemplate.opsForList().rightPush(QUEUE_KEY, userId);
-            log.info("Refreshed position for user {} in queue.", userId);
-            broadcastQueueStatus(); // 대기열 상태 갱신
-        }
-    }
-
     public boolean isConnectedUser(String userId) {
         return redisTemplate.opsForSet().isMember(CONNECTED_USERS_KEY, userId);
     }
     
+    public boolean isInQueue(String userId) {
+    List<Object> queue = redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
+    return queue.contains(userId);
+}
 
     // @Scheduled(fixedRate = 10000) // 10초마다 실행
     public void broadcastQueueStatus() {

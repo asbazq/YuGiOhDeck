@@ -316,7 +316,7 @@
     <div class="left-container">
         <div id="title">YuGiOh Deck</div>
         <div class="description">이 웹사이트는 YuGiOh 덱 빌더입니다. 원하는 카드를 추가하고 덱을 구성해보세요!</div>
-        <div class="contact-info">오류 문의 : wjdgns5488@naver.com</div>
+        <div class="contact-info">오류 문의 : test2@naver.com</div>
         <button id="resetButton">Reset</button>
         <div id="mainDeckLabel">메인 덱 <span id="mainDeckCount">0</span></div>
         <div class="cards" id="cardsContainer"></div>
@@ -342,127 +342,130 @@
         let isEnterCalled = false; // `/enter` 중복 호출 방지 플래그
         let socketInitialized = false; // WebSocket 초기화 방지 플래그
 
-            document.addEventListener("DOMContentLoaded", function () {
-                const userId = sessionStorage.getItem("userId");
-                if (userId) {
-                    console.log("User ID already exists:", userId);
-                    initializeWebSocket(); // 기존 ID로 WebSocket 초기화
-                } else {
-                    enterSite(); // 새로운 userId 생성
-                }
-            });
-
-            function enterSite() {
-                if (isEnterCalled) {
-                    console.log("isEnterCalled = true");
-                    return;
-                }
-
-
-                isEnterCalled = true; // `/enter` 호출 상태 설정
-
-                // 1초 딜레이 후 `/enter` 호출
-                setTimeout(() => {
-                    fetch("/enter")
-                        .then((response) => response.json())
-                        .then((data) => {
-                            console.log("User ID :", data.userId);
-                            console.log("Redirect URL :", data.redirectUrl);
-
-                            // sessionStorage에 사용자 ID 저장  
-                            sessionStorage.setItem("userId", data.userId);
-
-                            // 리다이렉션 수행
-                            if (!window.location.pathname.includes(data.redirectUrl)) {
-                                console.log("리다이렉션 :", data.redirectUrl);
-                                window.location.replace(data.redirectUrl); // 현재 페이지와 다르면 이동
-                            } else {
-                                initializeWebSocket(); // WebSocket 초기화
-                            }
-                        })
-                        .catch((error) => console.error("/enter 패치 에러:", error))
-                        .finally(() => {
-                            isEnterCalled = false; // 요청 상태 플래그 해제
-                        });
-                }, 1000); // 딜레이 적용 (1000ms)
-            }
-
-            function initializeWebSocket() {
-                if (socketInitialized) {
-                    console.log("socketInitialized = true");
-                    return;
-                }
-
-                socketInitialized = true;
-
-                let socket = new WebSocket("ws://localhost:8080/queue");
-
-                socket.onmessage = function (event) {
-                    let message = JSON.parse(event.data);
-                    console.log("메세지:", message);
-
-                    if (message.action === "position" && message.userId === getCurrentUserId()) {
-                        let queuePosition = document.getElementById("queuePosition");
-                        if (queuePosition) {
-                            queuePosition.textContent = `대기열: ${message.position}`;
-                        }
-                    } else if (message.action === "redirect" && message.userId === getCurrentUserId()) {
-                        window.location.href = message.url; // WebSocket 리다이렉션
-                    }
-                };
-
-                socket.onopen = function () {
-                    console.log("WebSocket 연결");
-                };
-
-                socket.onclose = function () {
-                    console.log("WebSocket 연결 종료");
-                    delete window.socket;
-                };
-
-                socket.onerror = function (error) {
-                    console.error("WebSocket 에러:", error);
-                };
-            }
-
-            document.addEventListener("DOMContentLoaded", function () {
-                if (window.location.pathname === "/index.html") {
-                    console.log("index.html.");
-                    if (!sessionStorage.getItem("userId")) {
-                        fetch("/enter")
-                            .then((response) => response.json())
-                            .then((data) => {
-                                console.log("User ID index.html:", data.userId);
-                                sessionStorage.setItem("userId", data.userId);
-                            });
-                    } else {
-                        console.log("존재하는 User ID:", sessionStorage.getItem("userId"));
-                    }
-                }
-    });
-
-
-            function getCurrentUserId() {
-                return sessionStorage.getItem("userId") || "unknown";
-            }
-
-            window.onbeforeunload = function () {
+        document.addEventListener("DOMContentLoaded", function () {
             const userId = sessionStorage.getItem("userId");
-            const navigationType = performance.getEntriesByType("navigation")[0]?.type;
-
-            if (userId && navigationType !== "navigate") { // "navigate"는 최초 접속으로 간주
-                const isRefresh = navigationType === "reload";
-                const url = "/exit";
-                const data = new URLSearchParams({ userId: userId, refresh: isRefresh });
-
-                const success = navigator.sendBeacon(url, data);
-                if (success) {
-                    console.log("Exit 요청");
-                } else {
-                    console.error("Exit 실패");
-                }
+            if (userId) {
+                console.log("기존 User ID:", userId);
+                initializeWebSocket(); // 기존 ID로 WebSocket 초기화
+            } else {
+                enterSite(); // 새로운 userId 생성
             }
+        });
+
+        function enterSite() {
+            if (isEnterCalled) {
+                console.log("enterSite 중복 호출 방지");
+                return;
+            }
+
+            isEnterCalled = true; // `/enter` 호출 상태 설정
+
+            fetch("/enter")
+                .then((response) => response.json())
+                .then((data) => {
+                    console.log("User ID:", data.userId);
+                    console.log("Redirect URL:", data.redirectUrl);
+
+                    // sessionStorage에 사용자 ID 저장
+                    sessionStorage.setItem("userId", data.userId);
+
+                    // 리다이렉션 수행
+                    if (data.redirectUrl && !window.location.pathname.includes(data.redirectUrl)) {
+                        console.log("리다이렉션:", data.redirectUrl);
+                        sessionStorage.setItem("isInitialRedirect", "true");
+                        window.location.replace(data.redirectUrl);
+                    } else {
+                        console.log("현재 페이지 유지. WebSocket 초기화.");
+                        initializeWebSocket(); // WebSocket 초기화
+                    }
+                })
+                .catch((error) => console.error("/enter 호출 에러:", error))
+                .finally(() => {
+                    isEnterCalled = false; // 호출 상태 초기화
+                });
+        }
+
+        function initializeWebSocket() {
+            if (socketInitialized) {
+                console.log("WebSocket 중복 초기화 방지");
+                return;
+            }
+
+            socketInitialized = true;
+            const socket = new WebSocket("ws://localhost:8080/queue");
+
+            socket.onmessage = function (event) {
+                const message = JSON.parse(event.data);
+                console.log("WebSocket 메시지 수신:", message);
+
+                if (message.action === "redirect" && message.userId === getCurrentUserId()) {
+                    window.location.href = message.url; // WebSocket 리다이렉션
+                }
+            };
+
+            socket.onopen = function () {
+                console.log("WebSocket 연결 성공");
+            };
+
+            socket.onclose = function () {
+                console.log("WebSocket 연결 종료");
+                delete window.socket;
+            };
+
+            socket.onerror = function (error) {
+                console.error("WebSocket 에러:", error);
+            };
+        }
+
+        function getCurrentUserId() {
+            return sessionStorage.getItem("userId") || "unknown";
+        }
+
+        // window.addEventListener("load", function () {
+        //     if (sessionStorage.getItem("isRefresh") === "true") {
+        //         sessionStorage.setItem("isRefresh", "false");
+        //         console.log("isRefresh 상태 초기화.");
+        //     }
+        // });
+
+        let isExitCalled = false; // Exit 중복 호출 방지 플래그
+
+        window.onbeforeunload = function () {
+            if (isExitCalled) {
+                console.log("Exit 중복 실행 방지.");
+                return;
+            }
+
+            const userId = sessionStorage.getItem("userId");
+            const isRefresh = performance.navigation.type === performance.navigation.TYPE_RELOAD;
+            console.log("onbeforeunload: isRefresh =", isRefresh);
+
+            if (!userId) {
+                console.log("사용자 ID 없음. Exit 요청 생략.");
+                return;
+            }
+
+            const url = "/exit";
+            // const data = new URLSearchParams({ userId: userId, refresh: isRefresh });
+            const data = new FormData();
+            data.append("userId", userId);
+            data.append("refresh", isRefresh);
+
+            const success = navigator.sendBeacon(url, data);
+            if (success) {
+                console.log("SendBeacon으로 Exit 요청 성공.");
+            } else {
+                console.error("SendBeacon 실패.");
+            }
+            // if (sessionStorage.getItem("isRefresh") === "true") {
+            //     sessionStorage.setItem("isRefresh", "false");
+            //     console.log("isRefresh 상태 초기화.");
+            // }
+
+            isExitCalled = true; // Exit 중복 방지 플래그 설정
         };
+
+
 
         let currentPage = 0;
         let isLoading = false;
