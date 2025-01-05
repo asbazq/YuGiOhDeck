@@ -27,50 +27,55 @@ public class QueueService {
         this.webSocketHandler = webSocketHandler;
     }
 
-    public String handleUserEntry(String userId) {
-        String lockKey = "user_entry_lock:" + userId;
-        String lockValue = UUID.randomUUID().toString(); // 고유 소유권 값
+    public synchronized String handleUserEntry(String userId) {
+        // String lockKey = "user_entry_lock:" + userId;
+        // String lockValue = UUID.randomUUID().toString(); // 고유 소유권 값
 
-        // Redis 락 생성
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, Duration.ofSeconds(10));
-        if (acquired == null || !acquired) {
-            log.warn("User {} is already being processed.", userId);
-            return "/queue.html"; // 이미 처리 중인 경우 대기열로 이동
-        }
+        // // Redis 락 생성
+        // Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, Duration.ofSeconds(10));
+        // if (acquired == null || !acquired) {
+        //     log.warn("User {} is already being processed.", userId);
+        //     return "/queue.html"; // 이미 처리 중인 경우 대기열로 이동
+        // }
 
-        try {
+        // try {
             // 중복 확인 및 처리
             if (isConnectedUser(userId)) {
-                log.warn("User {} is already connected.", userId);
+                log.warn("사이트에 존재하는 사용자 {}", userId);
                 return "";
             }
 
-            List<Object> queue = redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
-            if (queue.contains(userId)) {
-                log.warn("User {} is already in the queue.", userId);
+            // List<Object> queue = redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
+            // if (queue.contains(userId)) {
+            //     log.warn("대기열에 존재하는 사용자 {}", userId);
+            //     return "/queue.html";
+            // }
+            if (isInQueue(userId)) {
+                log.warn("대기열에 존재하는 사용자 {}", userId);
                 return "/queue.html";
             }
 
             long connectedUsers = getConnectedUsersCount();
-            log.info("현재 접속 인원: {}", connectedUsers + 1);
 
             if (connectedUsers < MAX_USERS) {
                 addConnectedUser(userId);
                 grantAccess(userId);
-                return "";
+                log.info("현재 접속 인원: {}", connectedUsers + 1);
+                return "/index.html";
             } else {
                 addUserToQueue(userId);
                 return "/queue.html";
             }
-        } finally {
-            // 락 소유권 확인 후 해제
-            Object currentValue = redisTemplate.opsForValue().get(lockKey);
-            if (lockValue.equals(currentValue)) {
-                redisTemplate.delete(lockKey);
-            } else {
-                log.warn("Failed to release lock for userId: {}. Lock value mismatch.", userId);
-            }
-        }
+        // } 
+        // finally {
+        //     // 락 소유권 확인 후 해제
+        //     Object currentValue = redisTemplate.opsForValue().get(lockKey);
+        //     if (lockValue.equals(currentValue)) {
+        //         redisTemplate.delete(lockKey);
+        //     } else {
+        //         log.warn("Failed to release lock for userId: {}. Lock value mismatch.", userId);
+        //     }
+        // }
     }
 
     
@@ -78,14 +83,13 @@ public class QueueService {
         if (!isConnectedUser(userId)) {
             redisTemplate.opsForSet().add(CONNECTED_USERS_KEY, userId);
             broadcastQueueStatus();
-            log.info("Added user {} to connected users.", userId);
         } else {
-            log.warn("User {} is already in connected users.", userId);
+            log.warn("사용자 {} 는 이미 접속 중", userId);
         }
     }
     
 
-    public void removeConnectedUser(String userId) {
+    public synchronized void removeConnectedUser(String userId) {
         redisTemplate.opsForSet().remove(CONNECTED_USERS_KEY, userId);
         broadcastQueueStatus();
         log.info("사용자 제거 결과: " + userId + " - 현재 접속 인원: " + getConnectedUsersCount());
@@ -106,39 +110,40 @@ public class QueueService {
     // }
 
     private void moveUser() {
-        String lockKey = "queue_move_lock";
-        String lockValue = UUID.randomUUID().toString();
+        // String lockKey = "queue_move_lock";
+        // String lockValue = UUID.randomUUID().toString();
     
-        // Redis 락 설정 (10초 유효)
-        Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, Duration.ofSeconds(10));
-        if (acquired == null || !acquired) {
-            log.info("Another process is already handling the queue.");
-            return;
-        }
+        // // Redis 락 설정 (10초 유효)
+        // Boolean acquired = redisTemplate.opsForValue().setIfAbsent(lockKey, lockValue, Duration.ofSeconds(10));
+        // if (acquired == null || !acquired) {
+        //     log.info("Another process is already handling the queue.");
+        //     return;
+        // }
     
-        try {
+        // try {
             long connectedUsers = getConnectedUsersCount();
-            log.info("Processing next user in queue. Current connected users: {}", connectedUsers);
+
+            if (connectedUsers >= MAX_USERS) {
+                log.info("접속 가능한 슬롯 없음. 대기열 처리 중단.");
+                return;
+            }
     
-            if (connectedUsers < MAX_USERS) {
-                String nextUser = (String) redisTemplate.opsForList().rightPop(QUEUE_KEY);
-                if (nextUser != null) {
-                    addConnectedUser(nextUser);
-                    grantAccess(nextUser);
-                    log.info("User {} moved from queue to connected users.", nextUser);
-                } else {
-                    log.info("No users in queue to process.");
-                }
+            String nextUser = (String) redisTemplate.opsForList().leftPop(QUEUE_KEY);
+            if (nextUser != null) {
+                addConnectedUser(nextUser);
+                grantAccess(nextUser);
+                log.info("현재 접속 사용자 수 : {}", connectedUsers + 1);
             } else {
-                log.info("No available slots for new users.");
+                log.info("대기열 비어있음.");
             }
-        } finally {
-            // 락 해제
-            Object currentValue = redisTemplate.opsForValue().get(lockKey);
-            if (lockValue.equals(currentValue)) {
-                redisTemplate.delete(lockKey);
-            }
-        }
+
+        // } finally {
+        //     // 락 해제
+        //     Object currentValue = redisTemplate.opsForValue().get(lockKey);
+        //     if (lockValue.equals(currentValue)) {
+        //         redisTemplate.delete(lockKey);
+        //     }
+        // }
     }
 
     
@@ -191,7 +196,7 @@ public class QueueService {
     }
     
     public boolean isInQueue(String userId) {
-    List<Object> queue = redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
+        List<Object> queue = redisTemplate.opsForList().range(QUEUE_KEY, 0, -1);
     return queue.contains(userId);
 }
 

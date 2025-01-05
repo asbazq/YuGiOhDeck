@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Waiting Room</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .waiting-container {
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+
+        p {
+            font-size: 18px;
+        }
+    </style>
+</head>
+<body>
+    <div class="waiting-container">
+        <h1>Redirecting...</h1>
+        <p>Please wait while we determine your status.</p>
+    </div>
+
+    <script>
+        let userId = sessionStorage.getItem("userId");
+        if (!userId) {
+            console.error("User ID가 없습니다. /enter API를 호출하여 ID를 생성하세요.");
+            fetch("/enter")
+                .then((response) => response.json())
+                .then((data) => {
+                    userId = data.userId;
+                    sessionStorage.setItem("userId", userId);
+                    checkStatus();
+                })
+                .catch((error) => console.error("User ID 생성 에러:", error));
+        } else {
+            checkStatus();
+        }
+
+        let intervalId;
+
+        function checkStatus() {
+            fetch(`/checkStatus?userId=${encodeURIComponent(userId)}`)
+                .then((response) => response.json())
+                .then((data) => {
+                    const redirectUrl = data.redirectUrl;
+                    console.log("리다이렉션 대상:", redirectUrl);
+
+                    if (redirectUrl && !window.location.pathname.includes(redirectUrl)) {
+                        clearInterval(intervalId); // 리다이렉션 후 상태 확인 중단
+                        window.location.replace(redirectUrl);
+                    }
+                })
+                .catch((error) => console.error("상태 확인 에러:", error));
+        }
+
+        // 3초마다 상태 확인
+        intervalId = setInterval(checkStatus, 3000);
+    </script>
+</body>
+</html>

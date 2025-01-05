@@ -339,51 +339,54 @@
     <div class="expanded-overlay"></div>
 
     <script>
-        let isEnterCalled = false; // `/enter` 중복 호출 방지 플래그
+        // let isEnterCalled = false; // `/enter` 중복 호출 방지 플래그
         let socketInitialized = false; // WebSocket 초기화 방지 플래그
 
         document.addEventListener("DOMContentLoaded", function () {
+            const isRefresh = performance.navigation.type === performance.navigation.TYPE_RELOAD;
+            sessionStorage.setItem("isRefresh", isRefresh.toString());
             const userId = sessionStorage.getItem("userId");
             if (userId) {
                 console.log("기존 User ID:", userId);
                 initializeWebSocket(); // 기존 ID로 WebSocket 초기화
             } else {
-                enterSite(); // 새로운 userId 생성
+                // enterSite(); // 새로운 userId 생성
+                window.location.replace("/waiting.html");
             }
         });
 
-        function enterSite() {
-            if (isEnterCalled) {
-                console.log("enterSite 중복 호출 방지");
-                return;
-            }
+        // function enterSite() {
+        //     if (isEnterCalled) {
+        //         console.log("enterSite 중복 호출 방지");
+        //         return;
+        //     }
 
-            isEnterCalled = true; // `/enter` 호출 상태 설정
+        //     isEnterCalled = true; // `/enter` 호출 상태 설정
 
-            fetch("/enter")
-                .then((response) => response.json())
-                .then((data) => {
-                    console.log("User ID:", data.userId);
-                    console.log("Redirect URL:", data.redirectUrl);
+        //     fetch("/enter")
+        //         .then((response) => response.json())
+        //         .then((data) => {
+        //             console.log("User ID:", data.userId);
+        //             console.log("Redirect URL:", data.redirectUrl);
 
-                    // sessionStorage에 사용자 ID 저장
-                    sessionStorage.setItem("userId", data.userId);
+        //             // sessionStorage에 사용자 ID 저장
+        //             sessionStorage.setItem("userId", data.userId);
 
-                    // 리다이렉션 수행
-                    if (data.redirectUrl && !window.location.pathname.includes(data.redirectUrl)) {
-                        console.log("리다이렉션:", data.redirectUrl);
-                        sessionStorage.setItem("isInitialRedirect", "true");
-                        window.location.replace(data.redirectUrl);
-                    } else {
-                        console.log("현재 페이지 유지. WebSocket 초기화.");
-                        initializeWebSocket(); // WebSocket 초기화
-                    }
-                })
-                .catch((error) => console.error("/enter 호출 에러:", error))
-                .finally(() => {
-                    isEnterCalled = false; // 호출 상태 초기화
-                });
-        }
+        //             // 리다이렉션 수행
+        //             if (data.redirectUrl && !window.location.pathname.includes(data.redirectUrl)) {
+        //                 console.log("리다이렉션:", data.redirectUrl);
+        //                 sessionStorage.setItem("isInitialRedirect", "true");
+        //                 window.location.replace(data.redirectUrl);
+        //             } else {
+        //                 console.log("현재 페이지 유지. WebSocket 초기화.");
+        //                 initializeWebSocket(); // WebSocket 초기화
+        //             }
+        //         })
+        //         .catch((error) => console.error("/enter 호출 에러:", error))
+        //         .finally(() => {
+        //             isEnterCalled = false; // 호출 상태 초기화
+        //         });
+        // }
 
         function initializeWebSocket() {
             if (socketInitialized) {
@@ -397,14 +400,21 @@
             socket.onmessage = function (event) {
                 const message = JSON.parse(event.data);
                 console.log("WebSocket 메시지 수신:", message);
-
-                if (message.action === "redirect" && message.userId === getCurrentUserId()) {
-                    window.location.href = message.url; // WebSocket 리다이렉션
-                }
             };
 
             socket.onopen = function () {
                 console.log("WebSocket 연결 성공");
+                const userId = sessionStorage.getItem("userId");
+                const isRefresh = performance.navigation.type === performance.navigation.TYPE_RELOAD;
+
+                // 웹소켓으로 새로고침 여부 전송
+                const message = {
+                    action: "refreshStatus",
+                    userId: userId,
+                    isRefresh: isRefresh,
+                };
+                socket.send(JSON.stringify(message));
+                console.log("웹소켓으로 새로고침 여부 전송:", message);
             };
 
             socket.onclose = function () {
@@ -421,13 +431,6 @@
             return sessionStorage.getItem("userId") || "unknown";
         }
 
-        // window.addEventListener("load", function () {
-        //     if (sessionStorage.getItem("isRefresh") === "true") {
-        //         sessionStorage.setItem("isRefresh", "false");
-        //         console.log("isRefresh 상태 초기화.");
-        //     }
-        // });
-
         let isExitCalled = false; // Exit 중복 호출 방지 플래그
 
         window.onbeforeunload = function () {
@@ -437,7 +440,7 @@
             }
 
             const userId = sessionStorage.getItem("userId");
-            const isRefresh = performance.navigation.type === performance.navigation.TYPE_RELOAD;
+            const isRefresh = sessionStorage.getItem("isRefresh") === "true";
             console.log("onbeforeunload: isRefresh =", isRefresh);
 
             if (!userId) {
@@ -446,10 +449,9 @@
             }
 
             const url = "/exit";
-            // const data = new URLSearchParams({ userId: userId, refresh: isRefresh });
-            const data = new FormData();
+            const data = new URLSearchParams();
             data.append("userId", userId);
-            data.append("refresh", isRefresh);
+            data.append("refresh", isRefresh.toString()); // boolean 값을 문자열로 변환
 
             const success = navigator.sendBeacon(url, data);
             if (success) {
@@ -457,10 +459,12 @@
             } else {
                 console.error("SendBeacon 실패.");
             }
-            // if (sessionStorage.getItem("isRefresh") === "true") {
-            //     sessionStorage.setItem("isRefresh", "false");
-            //     console.log("isRefresh 상태 초기화.");
-            // }
+            
+            if (isRefresh) {
+                console.log("새로고침 감지. waiting.html로 리다이렉트.");
+                sessionStorage.setItem("isRefresh", "false");
+                window.location.href = "/waiting.html"; // 새로고침 시 waiting.html로 이동
+            }
 
             isExitCalled = true; // Exit 중복 방지 플래그 설정
         };
