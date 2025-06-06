@@ -216,9 +216,24 @@ public class CardService {
     public Page<CardMiniDto> search(String keyWord, Pageable pageable) {
         Page<CardModel> cards = cardRepository.searchByNameContaining(keyWord, pageable);
         return cards.map(cardModel -> {
-            List<CardImage> cardImage = cardImgRepository.findByCardModel(cardModel);
-            CardImage firstImage = cardImage.get(0);
-            return new CardMiniDto(cardModel.getId(), cardModel.getKorName(), firstImage.getImageUrlSmall(), firstImage.getImageUrl(), cardModel.getFrameType());
+            List<CardImage> cardImages = cardImgRepository.findByCardModel(cardModel);
+            if (cardImages.isEmpty()) {
+                return new CardMiniDto(
+                    cardModel.getId(),
+                    cardModel.getKorName(),
+                    "",
+                    "",
+                    cardModel.getFrameType()
+                );
+            }
+            CardImage firstImage = cardImages.get(0);
+            return new CardMiniDto(
+                cardModel.getId(),
+                cardModel.getKorName(),
+                firstImage.getImageUrlSmall(),
+                firstImage.getImageUrl(),
+                cardModel.getFrameType()
+            );
         });
     }
 
