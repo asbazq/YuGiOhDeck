@@ -5,7 +5,7 @@ build/
 !**/src/main/**/build/
 !**/src/test/**/build/
 application.properties
-# ...existing code...
+src/main/resources/application.properties
 node_modules/
 # ...existing code...
 

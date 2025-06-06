@@ -345,7 +345,7 @@ public class CardService {
                 korDesc = cardModel.getKorDesc();
             }
         String enRace = cardModel.getRace();
-        RaceEnum korRace = RaceEnum.valueOf(enRace);
+        RaceEnum korRace = RaceEnum.fromEnglishName(enRace);
         LimitRegulation limitRegulation = limitRegulationRepository.findByCardName(cardName);
         if (limitRegulation != null) {
             restrictionType = limitRegulation.getRestrictionType();
@@ -403,7 +403,7 @@ public class CardService {
                     log.info("{} 리스트 : {}", listId, strong.getText());
                     LimitRegulation limitRegulation = new LimitRegulation();
                     limitRegulation.setCardName(strong.getText());
-                    limitRegulation.setRestrictionType("listId");
+                    limitRegulation.setRestrictionType(listId);
                     limitRegulationRepository.save(limitRegulation);
                 }
             }

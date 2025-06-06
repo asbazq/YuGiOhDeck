@@ -34,7 +34,7 @@ public enum RaceEnum {
     }
 
     public String getRace() {
-        return getRace();
+        return race;
     }
     
     public static RaceEnum fromEnglishName(String enRace) {

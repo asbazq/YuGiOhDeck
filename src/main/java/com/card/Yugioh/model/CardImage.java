@@ -29,7 +29,7 @@ public class CardImage {
     public CardImage(Long id, String imageUrl, String imageUrlSmall, String imageUrlCropped, CardModel cardModel) {
         this.id = id;
         this.imageUrl = imageUrl;
-        this. imageUrlSmall = imageUrlSmall;
+        this.imageUrlSmall = imageUrlSmall;
         this.imageUrlCropped = imageUrlCropped;
         this.cardModel = cardModel;
     }
