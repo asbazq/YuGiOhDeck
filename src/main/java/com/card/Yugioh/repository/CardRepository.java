@@ -17,8 +17,12 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     // @Query("SELECT c FROM CardModel c WHERE LOWER(c.name) LIKE LOWER(CONCAT ('%', :query, '%'))")
     // List<CardModel> searchByNameContaining(@Param("query")String query);
 
-    // name 대,문자 구분 없이 검색 및 띄어쓰기 무시
-    @Query("SELECT c FROM CardModel c WHERE LOWER(REPLACE(c.korName, ' ', '')) LIKE LOWER(REPLACE(CONCAT('%', :query, '%'), ' ', '')) OR LOWER(REPLACE(c.name, ' ', '')) LIKE LOWER(REPLACE(CONCAT('%', :query, '%'), ' ', ''))")
+    @Query("""
+       SELECT c
+       FROM   CardModel c
+       WHERE  c.korName LIKE CONCAT('%', :query, '%')
+          OR  c.name    LIKE CONCAT('%', :query, '%')
+       """)
     Page<CardModel> searchByNameContaining(@Param("query") String query, Pageable pageable);
 
     

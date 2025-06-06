@@ -39,8 +39,9 @@ public class ImageService {
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
-    private final Path savePath = Paths.get("/home/d568/Desktop/yugioh/card_images");
-    
+    private final Path savePath = Paths.get("D:/project/card_images");
+    // /home/d568/Desktop/yugioh/card_images
+
     public void fetchAndSaveCardImages() throws IOException {
         String response = Request.get(apiUrl)
                                  .execute()
