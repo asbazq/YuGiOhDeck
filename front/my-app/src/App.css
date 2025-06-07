@@ -53,7 +53,7 @@
         position: relative;
         perspective: 1000px;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease-out;
+        transition: transform 0.3s ease-out, top 0.3s ease-out, left 0.3s ease-out;
     }
 
 
@@ -143,6 +143,10 @@
         background: rgba(0, 0, 0, 0.7);
         z-index: 5;
         display: none;
+    }
+
+    .placeholder {
+        visibility: hidden;
     }
 
 

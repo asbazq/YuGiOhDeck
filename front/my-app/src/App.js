@@ -17,6 +17,9 @@ function App() {
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
   const expandedOverlayRef = useRef(null);
+  const expandedIndexRef = useRef(null);
+  const isAnimatingRef = useRef(false);
+  const placeholderRefs = useRef({});
 
   const searchCards = useCallback((keyWord, page) => {
     if (!hasMoreResults || isLoading) return;
@@ -160,26 +163,84 @@ function App() {
   };
 
   const handleClick = (name, index) => {
-    setIsExpanded(prev => !prev);
+    if (isAnimatingRef.current) return;
+    const card = cardRefs.current[index];
+    if (!card) return;
 
     if (!isExpanded) {
+      const placeholder = card.cloneNode(true);
+      placeholder.classList.add('placeholder');
+      placeholder.style.visibility = 'hidden';
+      card.parentNode.insertBefore(placeholder, card);
+      placeholderRefs.current[index] = placeholder;
       viewCardDetail(name);
-      if (expandedOverlayRef.current && cardRefs.current[index]) {
+       if (expandedOverlayRef.current) {
         expandedOverlayRef.current.style.display = 'block';
-        cardRefs.current[index].classList.add('expanded');
+      }
+      const rect = card.getBoundingClientRect();
+      card.dataset.origTop = rect.top;
+      card.dataset.origLeft = rect.left;
+      card.dataset.origScrollY = window.scrollY;
+
+      card.style.position = 'fixed';
+      card.style.top = rect.top + 'px';
+      card.style.left = rect.left + 'px';
+
+      isAnimatingRef.current = true;
+      requestAnimationFrame(() => {
+        card.classList.add('expanded');
+        card.style.top = '';
+        card.style.left = '';
+        card.style.transform = 'translate(-50%, -50%) scale(4)';
+      });
+
+      card.addEventListener('transitionend', function handler() {
+        isAnimatingRef.current = false;
+        card.removeEventListener('transitionend', handler);
+      });
+
+      expandedIndexRef.current = index;
+      setIsExpanded(true);
+    } else {
+      if (expandedIndexRef.current !== index) return;
+      if (expandedOverlayRef.current) {
+        expandedOverlayRef.current.style.display = 'none';
         
       }
-    } else {
-      if (expandedOverlayRef.current && cardRefs.current[index]) {
-        expandedOverlayRef.current.style.display = 'none';
-        cardRefs.current[index].classList.remove('expanded');
-        setIsExpanded(false);
-        setCardDetail(null);
-      }
+
+      const origTop = parseFloat(card.dataset.origTop || 0);
+      const origLeft = parseFloat(card.dataset.origLeft || 0);
+      const origScrollY = parseFloat(card.dataset.origScrollY || 0);
+      const finalTop = origTop + (origScrollY - window.scrollY);
+
+      isAnimatingRef.current = true;
+      card.classList.remove('expanded');
+      card.style.top = finalTop + 'px';
+      card.style.left = origLeft + 'px';
+      card.style.transform = 'translate(0, 0) scale(1)';
+
+      card.addEventListener('transitionend', function handler() {
+        card.style.position = 'relative';
+        card.style.top = '';
+        card.style.left = '';
+        card.style.transform = '';
+        const placeholder = placeholderRefs.current[index];
+        if (placeholder) {
+          placeholder.remove();
+          delete placeholderRefs.current[index];
+        }
+        isAnimatingRef.current = false;
+        card.removeEventListener('transitionend', handler);
+      });
+
+      expandedIndexRef.current = null;
+      setIsExpanded(false);
+      setCardDetail(null);
     }
   };
 
   const handleMouseMove = (e, index) => {
+    if (isAnimatingRef.current) return;
     if (cardRefs.current[index]) {
       const x = e.nativeEvent.offsetX;
       const y = e.nativeEvent.offsetY;
@@ -201,6 +262,7 @@ function App() {
   };
 
   const handleMouseOut = (index) => {
+     if (isAnimatingRef.current) return;
     if (cardRefs.current[index]) {
       overlayRefs.current[index].style.background = 'none';
       if (isExpanded) {
@@ -215,16 +277,39 @@ function App() {
     const expandedOverlay = document.querySelector('.expanded-overlay');
 
     const handleOverlayClick = () => {
-      setIsExpanded(false);
-      if (expandedOverlay) {
-        expandedOverlay.style.display = 'none';
-      }
-      cardRefs.current.forEach(card => {
-        if (card) {
-          card.classList.remove('expanded');
-          card.style.transform = 'perspective(350px) rotateY(0deg) rotateX(0deg)';
-        }
+      if (isAnimatingRef.current || expandedIndexRef.current === null) return;
+      const card = cardRefs.current[expandedIndexRef.current];
+      if (!card) return;
+
+      expandedOverlay.style.display = 'none';
+
+      const origTop = parseFloat(card.dataset.origTop || 0);
+      const origLeft = parseFloat(card.dataset.origLeft || 0);
+      const origScrollY = parseFloat(card.dataset.origScrollY || 0);
+      const finalTop = origTop + (origScrollY - window.scrollY);
+
+      isAnimatingRef.current = true;
+      card.classList.remove('expanded');
+      card.style.top = finalTop + 'px';
+      card.style.left = origLeft + 'px';
+      card.style.transform = 'translate(0, 0) scale(1)';
+
+      card.addEventListener('transitionend', function handler() {
+        card.style.position = 'relative';
+        card.style.top = '';
+        card.style.left = '';
+        card.style.transform = '';
+        const placeholder = placeholderRefs.current[expandedIndexRef.current];
+         if (placeholder) {
+          placeholder.remove();
+          delete placeholderRefs.current[expandedIndexRef.current];
+          }
+        isAnimatingRef.current = false;
+        card.removeEventListener('transitionend', handler);
       });
+      expandedIndexRef.current = null;
+      setIsExpanded(false);
+      setCardDetail(null);
     };
 
     if (expandedOverlay) {
