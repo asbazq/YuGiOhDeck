@@ -146,6 +146,8 @@
     }
 
     .placeholder {
+        width: 98px;
+        height: 143px;
         visibility: hidden;
     }
 

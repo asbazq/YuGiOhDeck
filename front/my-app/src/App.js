@@ -13,13 +13,14 @@ function App() {
   const [message, setMessage] = useState('');
   const [cardDetail, setCardDetail] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
+  const [expandedIndex, setExpandedIndex] = useState(null);
+  
   
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
   const expandedOverlayRef = useRef(null);
   const expandedIndexRef = useRef(null);
   const isAnimatingRef = useRef(false);
-  const placeholderRefs = useRef({});
 
   const searchCards = useCallback((keyWord, page) => {
     if (!hasMoreResults || isLoading) return;
@@ -167,16 +168,12 @@ function App() {
     const card = cardRefs.current[index];
     if (!card) return;
 
-    if (!isExpanded) {
-      const placeholder = card.cloneNode(true);
-      placeholder.classList.add('placeholder');
-      placeholder.style.visibility = 'hidden';
-      card.parentNode.insertBefore(placeholder, card);
-      placeholderRefs.current[index] = placeholder;
+    if (expandedIndex === null) {
       viewCardDetail(name);
        if (expandedOverlayRef.current) {
         expandedOverlayRef.current.style.display = 'block';
       }
+
       const rect = card.getBoundingClientRect();
       card.dataset.origTop = rect.top;
       card.dataset.origLeft = rect.left;
@@ -200,6 +197,7 @@ function App() {
       });
 
       expandedIndexRef.current = index;
+      setExpandedIndex(index);
       setIsExpanded(true);
     } else {
       if (expandedIndexRef.current !== index) return;
@@ -224,18 +222,13 @@ function App() {
         card.style.top = '';
         card.style.left = '';
         card.style.transform = '';
-        const placeholder = placeholderRefs.current[index];
-        if (placeholder) {
-          placeholder.remove();
-          delete placeholderRefs.current[index];
-        }
+        expandedIndexRef.current = null;
+        setExpandedIndex(null);
+        setIsExpanded(false);
+        setCardDetail(null);
         isAnimatingRef.current = false;
         card.removeEventListener('transitionend', handler);
       });
-
-      expandedIndexRef.current = null;
-      setIsExpanded(false);
-      setCardDetail(null);
     }
   };
 
@@ -299,17 +292,13 @@ function App() {
         card.style.top = '';
         card.style.left = '';
         card.style.transform = '';
-        const placeholder = placeholderRefs.current[expandedIndexRef.current];
-         if (placeholder) {
-          placeholder.remove();
-          delete placeholderRefs.current[expandedIndexRef.current];
-          }
+        expandedIndexRef.current = null;
+        setExpandedIndex(null);
+        setIsExpanded(false);
+        setCardDetail(null);
         isAnimatingRef.current = false;
         card.removeEventListener('transitionend', handler);
       });
-      expandedIndexRef.current = null;
-      setIsExpanded(false);
-      setCardDetail(null);
     };
 
     if (expandedOverlay) {
@@ -334,10 +323,10 @@ function App() {
         <div id="mainDeckLabel">메인 덱 <span>{mainDeck.length}</span></div>
         <div className="cards" id="cardsContainer">
           {mainDeck.map((card, index) => (
-            <div 
-              key={index} 
-              className="card-container" 
-              onClick={() => handleClick(card.name, index)} 
+            <React.Fragment key={`${card.imageUrl.split('/').pop()}-${index}`}> 
+            <div
+              className="card-container"
+              onClick={() => handleClick(card.name, index)}
               onContextMenu={(e) => {
                 e.preventDefault();
                 removeCardFromDeck(index, 'main');
@@ -349,14 +338,16 @@ function App() {
               <div className="overlay"></div>
               <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
             </div>
+            {expandedIndex === index && <div className="card-container placeholder"></div>}
+            </React.Fragment>
           ))}
         </div>
         <div id="extraDeckLabel">엑스트라 덱 <span>{extraDeck.length}</span></div>
         <div className="cards" id="extraDeck">
           {extraDeck.map((card, index) => (
-            <div 
-              key={index} 
-              className="card-container" 
+             <React.Fragment key={`${card.imageUrl.split('/').pop()}-extra-${index}`}> 
+            <div
+              className="card-container"
               onClick={() => handleClick(card.name, mainDeck.length + index)}
               onContextMenu={(e) => {
                 e.preventDefault();
@@ -369,6 +360,8 @@ function App() {
               <div className="overlay"></div>
               <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
             </div>
+            {expandedIndex === mainDeck.length + index && <div className="card-container placeholder"></div>}
+            </React.Fragment>
           ))}
         </div>
       </div>
@@ -387,9 +380,9 @@ function App() {
         <div className="divider"></div>
         <div className="cards" id="searchResult">
           {searchResults.map((result, index) => (
-            <div 
-              key={index} 
-              className="search-result-item" 
+            <div
+              key={`${result.imageUrl.split('/').pop()}-${index}`}
+              className="search-result-item"
               onClick={() => addCardToDeck(result.imageUrl, result.frameType, result.name)}
             >
               <img src={`/images/${result.imageUrl.split('/').pop()}`} alt={result.name} />
