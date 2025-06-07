@@ -14,6 +14,7 @@ function App() {
   const [cardDetail, setCardDetail] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
+  const [effectsEnabled, setEffectsEnabled] = useState(true);
   
   
   const cardRefs = useRef([]);
@@ -238,19 +239,31 @@ function App() {
       const x = e.nativeEvent.offsetX;
       const y = e.nativeEvent.offsetY;
 
-      const rotateY = (-40 / 98) * x + 20;
-      const rotateX = (40 / 143) * y - 26;
-
       const bgPosX = (x / cardRefs.current[index].clientWidth) * 100;
       const bgPosY = (y / cardRefs.current[index].clientHeight) * 100;
 
-      overlayRefs.current[index].style.background = `radial-gradient(circle at ${bgPosX}% ${bgPosY}%, rgba(255, 255, 255, 0.8), transparent 70%)`;
-
-      if (isExpanded) {
-        cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(4) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+      if (effectsEnabled) {
+        overlayRefs.current[index].style.background = `radial-gradient(circle at ${bgPosX}% ${bgPosY}%, rgba(255, 255, 255, 0.8), transparent 70%)`;
       } else {
-        cardRefs.current[index].style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        overlayRefs.current[index].style.background = 'none';
       }
+
+      if (effectsEnabled) {
+        const rotateY = (-40 / 98) * x + 20;
+        const rotateX = (40 / 143) * y - 26;
+
+        if (isExpanded) {
+          cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(4) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        } else {
+          cardRefs.current[index].style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        }
+      } else {
+        if (isExpanded) {
+          cardRefs.current[index].style.transform = 'translate(-50%, -50%) scale(4)';
+        } else {
+          cardRefs.current[index].style.transform = '';
+        }
+      } 
     }
   };
 
@@ -261,7 +274,7 @@ function App() {
       if (isExpanded) {
         cardRefs.current[index].style.transform = 'translate(-50%, -50%) scale(4)';
       } else {
-        cardRefs.current[index].style.transform = 'perspective(350px) rotateY(0deg) rotateX(0deg)';
+        cardRefs.current[index].style.transform = effectsEnabled ? 'perspective(350px) rotateY(0deg) rotateX(0deg)' : '';
       }
     }
   };
@@ -364,6 +377,9 @@ function App() {
         <div className="description">이 웹사이트는 YuGiOh 덱 빌더입니다. 원하는 카드를 추가하고 덱을 구성해보세요!</div>
         <div className="contact-info">오류 문의 : wjdgns5488@naver.com</div>
         <button onClick={() => { setMainDeck([]); setExtraDeck([]); saveUrl([], []); window.history.pushState({}, '', '/'); }}>Reset</button>
+        <button onClick={() => setEffectsEnabled(!effectsEnabled)}>
+          {effectsEnabled ? '이펙트 OFF' : '이펙트 ON'}
+        </button>
         <div id="mainDeckLabel">메인 덱 <span>{mainDeck.length}</span></div>
         <div className="cards" id="cardsContainer">
           {mainDeck.map((card, index) => (
