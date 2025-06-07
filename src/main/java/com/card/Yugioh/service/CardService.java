@@ -103,8 +103,9 @@ public class CardService {
 
     public void crawlAll() {
         LocalDateTime today = LocalDateTime.now();
-        LocalDateTime oneweekAgo = today.minus(7, ChronoUnit.DAYS);
-        List<CardModel> cardModels = cardRepository.findByCreatedAtAfter(oneweekAgo);
+        // LocalDateTime oneweekAgo = today.minus(7, ChronoUnit.DAYS);
+        // List<CardModel> cardModels = cardRepository.findByCreatedAtAfter(oneweekAgo);
+        List<CardModel> cardModels = cardRepository.findAll();
 
         for (CardModel cardModel : cardModels) {
             String cardName = cardModel.getName();
@@ -115,7 +116,7 @@ public class CardService {
                 // 띄워쓰기를 _로 변경, 인코딩 오류를 발생하는 % 처리
                 String modifiedName = cardName.replace(" ", "_").replaceAll("%(?![0-9a-fA-F]{2})", "%25");
                 String encodedUrl = URLEncoder.encode(modifiedName, StandardCharsets.UTF_8.toString());
-                                                    
+                log.info("카드 이름 {}, 인코딩 url {}", cardName, encodedUrl);                      
     
                 String completeUrl = "https://yugioh.fandom.com/wiki/" + encodedUrl;
     

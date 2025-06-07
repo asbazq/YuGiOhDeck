@@ -35,7 +35,7 @@ import javax.imageio.ImageIO;
 @RequiredArgsConstructor
 @RestController
 public class ImageService {
-    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=100&offset=0&sort=new";
+    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=1000&offset=0&sort=new";
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
@@ -85,13 +85,22 @@ public class ImageService {
             JSONObject card = cardData.getJSONObject(i);
             JSONArray cardImages = card.getJSONArray("card_images");
 
+            CardModel baseModel = cardModels.get(i);
+
+            // ID 또는 이름으로 기존 모델을 가져오고 모델이 없는 경우 해당 모델을 유지 -> 이미지를 저장할 때 외래 키 위반 방지
+            CardModel referenceModel = cardRepository.findById(baseModel.getId())
+                .orElseGet(() -> {
+                    CardModel byName = cardRepository.findByName(baseModel.getName());
+                    return byName != null ? byName : cardRepository.saveAndFlush(baseModel);
+                });
+
             for (int j = 0; j < cardImages.length(); j++) {
                 JSONObject imageInfo = cardImages.getJSONObject(j);
                 String imageUrl = imageInfo.getString("image_url");
                 Long imageId = imageInfo.getLong("id");
                 String imageUrlSmall = imageInfo.getString("image_url_small");
                 String imageUrlCropped = imageInfo.getString("image_url_cropped");
-                CardImage cardImage = new CardImage(imageId, imageUrl, imageUrlSmall, imageUrlCropped, cardModels.get(i));
+                CardImage cardImage = new CardImage(imageId, imageUrl, imageUrlSmall, imageUrlCropped, referenceModel);
 
                 cardImgRepository.save(cardImage);
                 Path outputFile = savePath.resolve(imageId + ".jpg");
