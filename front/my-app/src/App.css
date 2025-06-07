@@ -1,10 +1,10 @@
     body {
         margin: 0;
-        font-family: Arial, sans-serif;
+        font-family: 'Noto Sans KR', Arial, sans-serif;
         display: block;
         justify-content: center;
         color: #212122;
-        background-color: #e0e7ee;
+         background: linear-gradient(135deg, #f0f4ff, #e0e7ee);
     }
 
     .container {
@@ -252,7 +252,12 @@
         position: fixed;
         bottom: 20px; /* 화면 하단에서의 거리 */
         right: 20px; /* 화면 우측에서의 거리 */
-        padding: 10px 20px;
+         z-index: 10;
+    }
+
+    .action-button {
+        margin: 5px 0;
+        padding: 8px 16px;
         background-color: #3b5998;
         border: none;
         color: white;
@@ -261,7 +266,6 @@
         font-size: 1em;
         transition: background-color 0.3s, box-shadow 0.3s;
         box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        z-index: 10;
     }
 
     button#resetButton:hover {
@@ -269,6 +273,10 @@
         box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
     }
 
+    .action-button:hover {
+        background-color: #2d4373;
+        box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+    }
 
     .contact-info:hover {
         text-decoration: underline;
