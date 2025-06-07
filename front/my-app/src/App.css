@@ -48,7 +48,7 @@
     }
 
     #cardsContainer {
-    margin-bottom: 30px;
+        margin-bottom: 30px;
     }
 
     .card-container {
@@ -92,6 +92,7 @@
 
         .deck-card-wrapper {
             width: 49px;
+            height: 93px;
         }
 
         .card {
@@ -108,6 +109,7 @@
 
          .deck-card-wrapper {
             width: 29.4px;
+            height: 63px;
         }
 
         .card {
@@ -155,15 +157,6 @@
         display: none;
     }
 
-    .placeholder {
-        width: 98px;
-        height: 143px;
-        visibility: hidden;
-    }
-
-     .placeholder-wrapper .deck-card-name {
-        visibility: hidden;
-    }
 
     #message {
         position: fixed;
@@ -326,6 +319,7 @@
         flex-direction: column;
         align-items: center;
         width: 98px;
+        height: 163px;
         box-sizing: border-box;
     }
 

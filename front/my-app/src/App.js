@@ -416,12 +416,6 @@ function App() {
               </div>
               <p className="deck-card-name">{card.name}</p>
             </div>
-             {expandedIndex === index && (
-              <div className="deck-card-wrapper placeholder-wrapper">
-                <div className="card-container placeholder"></div>
-                <p className="deck-card-name">{card.name}</p>
-              </div>
-            )}
             </React.Fragment>
           ))}
         </div>
@@ -447,12 +441,6 @@ function App() {
               </div>
               <p className="deck-card-name">{card.name}</p>
             </div>
-              {expandedIndex === mainDeck.length + index && (
-              <div className="deck-card-wrapper placeholder-wrapper">
-                <div className="card-container placeholder"></div>
-                <p className="deck-card-name">{card.name}</p>
-              </div>
-            )}
             </React.Fragment>
           ))}
         </div>
