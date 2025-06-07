@@ -25,7 +25,15 @@ public enum RaceEnum {
     WARRIOR("전사족"),
     WINGED_BEAST("비행야수족"),
     WYRM("환룡족"),
-    ZOMBIE("언데드족");
+    ZOMBIE("언데드족"),
+    // Spell/Trap types
+    NORMAL("일반"),
+    CONTINUOUS("지속"),
+    EQUIP("장착"),
+    FIELD("필드"),
+    QUICK_PLAY("속공"),
+    RITUAL("의식"),
+    COUNTER("카운터");
 
     private final String race;
 

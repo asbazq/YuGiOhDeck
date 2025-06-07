@@ -375,7 +375,17 @@ function App() {
 
   return (
     <div className="container">
-      <div ref={expandedOverlayRef} className="expanded-overlay"></div> 
+    <div ref={expandedOverlayRef} className="expanded-overlay"></div>
+      {isExpanded && cardDetail && (
+        <div className="card-detail-container" style={{ display: 'block' }}>
+          <div id="cardDetailContainer">{cardDetail.name}</div>
+        </div>
+      )}
+      {isExpanded && cardDetail && (
+        <div className="card-detail-desc-container" style={{ display: 'block' }}>
+          {cardDetail.korDesc}
+        </div>
+      )}
       <div className="left-container">
         <div id="title">YuGiOh Deck</div>
         <div className="description">이 웹사이트는 YuGiOh 덱 빌더입니다. 원하는 카드를 추가하고 덱을 구성해보세요!</div>
@@ -387,44 +397,62 @@ function App() {
         <div id="mainDeckLabel">메인 덱 <span>{mainDeck.length}</span></div>
         <div className="cards" id="cardsContainer">
           {mainDeck.map((card, index) => (
-            <React.Fragment key={`${card.imageUrl.split('/').pop()}-${index}`}> 
-            <div
-              className="card-container"
-              onClick={() => handleClick(card.name, index)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                removeCardFromDeck(index, 'main');
-              }}
-              onMouseMove={(e) => handleMouseMove(e, index)}
-              onMouseOut={() => handleMouseOut(index)}
-              ref={(el) => { cardRefs.current[index] = el; overlayRefs.current[index] = el?.querySelector('.overlay'); }}
-            >
-              <div className="overlay"></div>
-              <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
+             <React.Fragment key={`${card.imageUrl.split('/').pop()}-${index}`}>
+            <div className="deck-card-wrapper">
+              <div
+                className="card-container"
+                onClick={() => handleClick(card.name, index)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (expandedIndexRef.current !== null) return;
+                  removeCardFromDeck(index, 'main');
+                }}
+                onMouseMove={(e) => handleMouseMove(e, index)}
+                onMouseOut={() => handleMouseOut(index)}
+                ref={(el) => { cardRefs.current[index] = el; overlayRefs.current[index] = el?.querySelector('.overlay'); }}
+              >
+                <div className="overlay"></div>
+                <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
+              </div>
+              <p className="deck-card-name">{card.name}</p>
             </div>
-            {expandedIndex === index && <div className="card-container placeholder"></div>}
+             {expandedIndex === index && (
+              <div className="deck-card-wrapper placeholder-wrapper">
+                <div className="card-container placeholder"></div>
+                <p className="deck-card-name">{card.name}</p>
+              </div>
+            )}
             </React.Fragment>
           ))}
         </div>
         <div id="extraDeckLabel">엑스트라 덱 <span>{extraDeck.length}</span></div>
         <div className="cards" id="extraDeck">
           {extraDeck.map((card, index) => (
-             <React.Fragment key={`${card.imageUrl.split('/').pop()}-extra-${index}`}> 
-            <div
-              className="card-container"
-              onClick={() => handleClick(card.name, mainDeck.length + index)}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                removeCardFromDeck(index, 'extra');
-              }}
-              onMouseMove={(e) => handleMouseMove(e, mainDeck.length + index)}
-              onMouseOut={() => handleMouseOut(mainDeck.length + index)}
-              ref={(el) => { cardRefs.current[mainDeck.length + index] = el; overlayRefs.current[mainDeck.length + index] = el?.querySelector('.overlay'); }}
-            >
-              <div className="overlay"></div>
-              <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
+             <React.Fragment key={`${card.imageUrl.split('/').pop()}-extra-${index}`}>
+            <div className="deck-card-wrapper">
+              <div
+                className="card-container"
+                onClick={() => handleClick(card.name, mainDeck.length + index)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  if (expandedIndexRef.current !== null) return;
+                  removeCardFromDeck(index, 'extra');
+                }}
+                onMouseMove={(e) => handleMouseMove(e, mainDeck.length + index)}
+                onMouseOut={() => handleMouseOut(mainDeck.length + index)}
+                ref={(el) => { cardRefs.current[mainDeck.length + index] = el; overlayRefs.current[mainDeck.length + index] = el?.querySelector('.overlay'); }}
+              >
+                <div className="overlay"></div>
+                <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
+              </div>
+              <p className="deck-card-name">{card.name}</p>
             </div>
-            {expandedIndex === mainDeck.length + index && <div className="card-container placeholder"></div>}
+              {expandedIndex === mainDeck.length + index && (
+              <div className="deck-card-wrapper placeholder-wrapper">
+                <div className="card-container placeholder"></div>
+                <p className="deck-card-name">{card.name}</p>
+              </div>
+            )}
             </React.Fragment>
           ))}
         </div>
