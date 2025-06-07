@@ -312,6 +312,50 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    let scrollTimeout;
+    let lastScrollY = window.scrollY;
+
+    const handleScrollFollow = () => {
+      if (expandedIndexRef.current !== null) {
+        const card = cardRefs.current[expandedIndexRef.current];
+        if (card) {
+          const currentScrollY = window.scrollY;
+          const scrollDiff = currentScrollY - lastScrollY;
+
+          const matrix = new DOMMatrix(window.getComputedStyle(card).transform);
+          const currentY = matrix.m42;
+          const direction = scrollDiff < 0 ? 'down' : 'up';
+          let newY;
+          if (direction === 'up') {
+            newY = currentY - Math.abs(scrollDiff) * 10;
+          } else {
+            newY = currentY + Math.abs(scrollDiff) * 10;
+          }
+
+          card.style.transform = `translate(-50%, ${newY}px) scale(4)`;
+
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(() => {
+            if (expandedIndexRef.current !== null) {
+              card.style.transform = 'translate(-50%, -50%) scale(4)';
+            }
+          }, 200);
+
+          lastScrollY = currentScrollY;
+        }
+      } else {
+        lastScrollY = window.scrollY;
+      }
+    };
+
+    window.addEventListener('scroll', handleScrollFollow);
+    return () => {
+      window.removeEventListener('scroll', handleScrollFollow);
+      clearTimeout(scrollTimeout);
+    };
+  }, []);
+
   return (
     <div className="container">
       <div ref={expandedOverlayRef} className="expanded-overlay"></div> 
