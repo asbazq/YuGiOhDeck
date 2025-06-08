@@ -16,6 +16,21 @@ function App() {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   
+   useEffect(() => {
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = "https://www.googletagmanager.com/gtag/js?id=G-HL4HGTHXLN";
+    document.head.appendChild(script);
+
+    const inlineScript = document.createElement("script");
+    inlineScript.innerHTML = `
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-HL4HGTHXLN');
+    `;
+    document.head.appendChild(inlineScript);
+  }, []);
   
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
@@ -390,7 +405,7 @@ function App() {
         <div id="title">YuGiOh Deck</div>
         <div className="description">이 웹사이트는 YuGiOh 덱 빌더입니다. 원하는 카드를 추가하고 덱을 구성해보세요!</div>
         <div className="contact-info">오류 문의 : wjdgns5488@naver.com</div>
-       <button id="resetButton" className="action-button" onClick={() => { setMainDeck([]); setExtraDeck([]); saveUrl([], []); window.history.pushState({}, '', '/'); }}>Reset</button>
+        <button id="resetButton" className="action-button" onClick={() => { setMainDeck([]); setExtraDeck([]); saveUrl([], []); window.history.pushState({}, '', '/'); }}>Reset</button>
         <button id="effectButton" className="action-button" onClick={() => setEffectsEnabled(!effectsEnabled)}>
           {effectsEnabled ? '이펙트 OFF' : '이펙트 ON'}
         </button>

@@ -109,7 +109,8 @@ public class CardService {
 
         for (CardModel cardModel : cardModels) {
             String cardName = cardModel.getName();
-            if (cardRepository.findByName(cardName).getKorName() != null && cardRepository.findByName(cardName).getKorDesc() != null) {
+            CardModel storedCard = cardRepository.findByName(cardName);
+            if (storedCard != null && storedCard.getKorName() != null && storedCard.getKorDesc() != null) {
                 continue;
             }
             try {
