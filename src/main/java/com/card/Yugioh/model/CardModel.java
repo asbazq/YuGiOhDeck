@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.elasticsearch.annotations.Document;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -21,6 +22,7 @@ import lombok.Setter;
 @Entity
 @JsonIgnoreProperties(ignoreUnknown = true) // Jackson에게 알려지지 않은 속성을 무시
 @EntityListeners(AuditingEntityListener.class)
+@Document(indexName = "cards")
 public class CardModel {
     @Id
     private Long id;

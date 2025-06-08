@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.service.CardService;
+import com.card.Yugioh.service.ElasticCardService;
 
 import lombok.RequiredArgsConstructor;
 
@@ -19,12 +20,19 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class CardController {
     private final CardService cardService;
+    private final ElasticCardService elasticCardService;
 
     @GetMapping("/search")
     @ResponseBody
     public Page<CardMiniDto> CardSearch(@RequestParam String keyWord, Pageable pageable) {
         return cardService.search(keyWord, pageable);
     }    
+
+     @GetMapping("/search-es")
+    @ResponseBody
+    public Page<CardMiniDto> searchByElasticsearch(@RequestParam String keyWord, Pageable pageable) {
+        return elasticCardService.search(keyWord, pageable);
+    }
 
     @GetMapping("/cardinfo")
     @ResponseBody

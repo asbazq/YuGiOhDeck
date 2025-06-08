@@ -3,6 +3,7 @@ package com.card.Yugioh.service;
 import org.apache.hc.client5.http.fluent.Request;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.Resource;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.HttpHeaders;
@@ -15,6 +16,7 @@ import com.card.Yugioh.repository.CardImgRepository;
 import com.card.Yugioh.repository.CardRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -39,8 +41,17 @@ public class ImageService {
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
-    private final Path savePath = Paths.get("D:/project/card_images");
-    // /home/d568/Desktop/yugioh/card_images
+    // private final Path savePath = Paths.get("D:/project/card_images");
+
+    @Value("${card.image.save-path}")
+    private String savePathString;
+
+    private Path savePath;
+
+    @PostConstruct
+    private void init() {
+        this.savePath = Paths.get(savePathString);
+    }
 
     public void fetchAndSaveCardImages() throws IOException {
         String response = Request.get(apiUrl)
