@@ -38,20 +38,12 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
-import java.time.temporal.ChronoUnit;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class CardService {
-    // sort - 카드 정렬 (atk, def, name, type, level, id, new).
-    // 최신 카드 5장
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=10&offset=0&sort=name";
-    // 금지 카드 최신순
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?banlist=ocg&sort=new";
-    // 모든 카드
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
+
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
@@ -109,51 +101,102 @@ public class CardService {
 
         for (CardModel cardModel : cardModels) {
             String cardName = cardModel.getName();
+            String frameType = cardModel.getFrameType();
             CardModel storedCard = cardRepository.findByName(cardName);
             if (storedCard != null && storedCard.getKorName() != null && storedCard.getKorDesc() != null) {
                 continue;
             }
             try {
                 // 띄워쓰기를 _로 변경, 인코딩 오류를 발생하는 % 처리
-                String modifiedName = cardName.replace(" ", "_").replaceAll("%(?![0-9a-fA-F]{2})", "%25");
+                String modifiedName = cardName.replace(" ", "_").replace("#", "_").replaceAll("%(?![0-9a-fA-F]{2})", "%25");
                 String encodedUrl = URLEncoder.encode(modifiedName, StandardCharsets.UTF_8.toString());
                 log.info("카드 이름 {}, 인코딩 url {}", cardName, encodedUrl);                      
     
                 String completeUrl = "https://yugioh.fandom.com/wiki/" + encodedUrl;
-    
+                String spareCompleteUrl = "https://yugipedia.com/wiki/" + encodedUrl;
                 // 웹 페이지의 HTML
                 Document doc = Jsoup.connect(completeUrl).get();
-                // 카드 정보가 있는 테이블
+
                 Element korName = doc.selectFirst("td.cardtablerowdata > span[lang=ko]");
-                Element korDesc = doc.selectFirst("td.navbox-list > span[lang=ko]");
-                if (korDesc != null) {
-                    // koreanDescription이 성공적으로 찾아졌을 때의 처리
-                    log.info("효과 : {}", korDesc.text());
-                    cardModel.setKorDesc(korDesc.text());
-                } else {
+
+                if (frameType.equals("effect_pendulum") || frameType.equals("xyz_pendulum") || frameType.equals("synchro_pendulum") 
+                || frameType.equals("fusion_pendulum") || frameType.equals("normal_pendulum")) {
                     // 펜듈럼 카드일 경우
                     Elements PendulumKorDescs = doc.select("td.navbox-list dd > span[lang=ko]");
                     StringBuilder combinedKorDesc = new StringBuilder();
-                    for (Element PendulumKorDesc : PendulumKorDescs) {
-                        if (PendulumKorDesc != null) {
-                            log.info("효과 : {}", PendulumKorDesc.text());
-                            combinedKorDesc.append(PendulumKorDesc.text()).append("\n");
+                    int idx = 0;
+                    for (Element desc : PendulumKorDescs) {
+                        if (desc != null) {
+                            String prefix = "";
+                            if (idx == 0) {
+                               prefix = "펜듈럼 효과: ";
+                            } else if (idx == 1) {
+                                prefix = "몬스터 효과: ";
+                            } 
+                            
+                            log.info("효과 : {}", desc.text());
+                            combinedKorDesc.append(prefix).append("\n").append(desc.text()).append("\n");
+                            idx++;
                         }
                     }
 
                     if (combinedKorDesc.length() > 0) {
                         cardModel.setKorDesc(combinedKorDesc.toString().trim());
                     } else {
-                        log.info("한국어 설명을 찾을 수 없습니다.");
+                        Elements pendulumKorDescs = doc.select("table.wikitable tr:has(th:containsOwn(Korean)) dl dd > span[lang=ko]");
+                        idx = 0;
+                        for (Element desc : pendulumKorDescs) {
+                            if (desc != null) {
+                                String prefix = "";
+                                if (idx == 0) {
+                                    prefix = "펜듈럼 효과: ";
+                                } else if (idx == 1) {
+                                    prefix = "몬스터 효과: ";
+                                } 
+
+                                log.info("효과 : {}", desc.text());
+                                combinedKorDesc.append(prefix).append("\n").append(desc.text()).append("\n");
+                                idx++;
+                            }
+                        }
+
+                        if (combinedKorDesc.length() > 0) {
+                        cardModel.setKorDesc(combinedKorDesc.toString().trim());
+                        } else {
+                            log.info("한국어 설명을 찾을 수 없습니다.");
+                        }
+                    }
+                } else {
+                    Element korDesc = doc.selectFirst("td.navbox-list > span[lang=ko]");
+                    if (korDesc != null) {
+                        // koreanDescription이 성공적으로 찾아졌을 때의 처리
+                        log.info("효과 : {}", korDesc.text());
+                        cardModel.setKorDesc(korDesc.text());
+                    } else {
+                        korDesc = doc.selectFirst("table.wikitable th:containsOwn(Korean) + td + td > span[lang=ko]");
+                        if (korDesc != null) {
+                            log.info("두번째 사이트 효과 : {}", korDesc.text());
+                            cardModel.setKorDesc(korDesc.text());
+                        } else {
+                            log.info("한국어 설명을 찾을 수 없습니다.");
+                        }
                     }
                 }
+ 
                 if (korName != null) {
                     // koreanDescription이 성공적으로 찾아졌을 때의 처리
                     log.info("이름 : {}", korName.text());
                     cardModel.setKorName(korName.text());
                 } else {
                     // koreanDescription을 찾지 못했을 때의 처리
-                    log.info("한국어 이름을 찾을 수 없습니다.");
+                    korName = doc.selectFirst("table.wikitable th:containsOwn(Korean) + td > span[lang=ko]");
+                    
+                    if (korName != null) {
+                        log.info("이름 : {}", korName.text());
+                        cardModel.setKorName(korName.text());
+                    } else {
+                        log.info("한국어 이름을 찾을 수 없습니다.");
+                    }
                 }
 
                 cardRepository.save(cardModel);

@@ -37,7 +37,14 @@ import javax.imageio.ImageIO;
 @RequiredArgsConstructor
 @RestController
 public class ImageService {
-    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=1000&offset=0&sort=new";
+    // sort - 카드 정렬 (atk, def, name, type, level, id, new).
+    // 최신 카드 5장
+    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=10&offset=0&sort=name";
+    // 금지 카드 최신순
+    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?banlist=ocg&sort=new";
+    // 모든 카드
+    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
+    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
