@@ -15,6 +15,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
@@ -32,7 +33,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.util.List;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -52,6 +55,12 @@ public class CardService {
     // private final AmazonS3 s3Client;
     // private String bucket;
 
+    private static final Set<String> PENDULUM_FRAMES = Set.of(
+        "effect_pendulum", "xyz_pendulum",
+        "synchro_pendulum", "fusion_pendulum",
+        "normal_pendulum"
+    );
+
     @PostConstruct
     public void setup() {
         // WebDriverManager를 사용하여 ChromeDriver를 자동으로 관리
@@ -60,7 +69,7 @@ public class CardService {
 
         // 브라우저를 headless 모드로 설정
         ChromeOptions options = new ChromeOptions();
-        options.addArguments("--headless"); // 브라우저 창을 표시하지 않음
+        // options.addArguments("--headless"); // 브라우저 창을 표시하지 않음
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
 
@@ -92,121 +101,135 @@ public class CardService {
         });
     }
 
-
+    @Transactional
     public void crawlAll() {
-        LocalDateTime today = LocalDateTime.now();
-        // LocalDateTime oneweekAgo = today.minus(7, ChronoUnit.DAYS);
-        // List<CardModel> cardModels = cardRepository.findByCreatedAtAfter(oneweekAgo);
-        List<CardModel> cardModels = cardRepository.findAll();
+        List<CardModel> cards = cardRepository.findAll();
 
-        for (CardModel cardModel : cardModels) {
-            String cardName = cardModel.getName();
-            String frameType = cardModel.getFrameType();
-            CardModel storedCard = cardRepository.findByName(cardName);
-            if (storedCard != null && storedCard.getKorName() != null && storedCard.getKorDesc() != null) {
+        for (CardModel card : cards) {
+            // 이미 한글명이 있고 설명이 채워져 있으면 건너뛰기
+            if (card.getKorName() != null && card.getKorDesc() != null) {
                 continue;
             }
-            try {
-                // 띄워쓰기를 _로 변경, 인코딩 오류를 발생하는 % 처리
-                String modifiedName = cardName.replace(" ", "_").replace("#", "_").replaceAll("%(?![0-9a-fA-F]{2})", "%25");
-                String encodedUrl = URLEncoder.encode(modifiedName, StandardCharsets.UTF_8.toString());
-                log.info("카드 이름 {}, 인코딩 url {}", cardName, encodedUrl);                      
-    
-                String completeUrl = "https://yugioh.fandom.com/wiki/" + encodedUrl;
-                String spareCompleteUrl = "https://yugipedia.com/wiki/" + encodedUrl;
-                // 웹 페이지의 HTML
-                Document doc = Jsoup.connect(completeUrl).get();
 
-                Element korName = doc.selectFirst("td.cardtablerowdata > span[lang=ko]");
+            String encodedName = encodeCardName(card.getName());
+            String primaryUrl = "https://yugioh.fandom.com/wiki/" + encodedName;
+            String fallbackUrl = "https://yugipedia.com/wiki/"   + encodedName;
 
-                if (frameType.equals("effect_pendulum") || frameType.equals("xyz_pendulum") || frameType.equals("synchro_pendulum") 
-                || frameType.equals("fusion_pendulum") || frameType.equals("normal_pendulum")) {
-                    // 펜듈럼 카드일 경우
-                    Elements PendulumKorDescs = doc.select("td.navbox-list dd > span[lang=ko]");
-                    StringBuilder combinedKorDesc = new StringBuilder();
-                    int idx = 0;
-                    for (Element desc : PendulumKorDescs) {
-                        if (desc != null) {
-                            String prefix = "";
-                            if (idx == 0) {
-                               prefix = "펜듈럼 효과: ";
-                            } else if (idx == 1) {
-                                prefix = "몬스터 효과: ";
-                            } 
-                            
-                            log.info("효과 : {}", desc.text());
-                            combinedKorDesc.append(prefix).append("\n").append(desc.text()).append("\n");
-                            idx++;
-                        }
-                    }
+            Document doc = fetchDoc(primaryUrl);
+            Document spareDoc = fetchDoc(fallbackUrl);
 
-                    if (combinedKorDesc.length() > 0) {
-                        cardModel.setKorDesc(combinedKorDesc.toString().trim());
-                    } else {
-                        Elements pendulumKorDescs = doc.select("table.wikitable tr:has(th:containsOwn(Korean)) dl dd > span[lang=ko]");
-                        idx = 0;
-                        for (Element desc : pendulumKorDescs) {
-                            if (desc != null) {
-                                String prefix = "";
-                                if (idx == 0) {
-                                    prefix = "펜듈럼 효과: ";
-                                } else if (idx == 1) {
-                                    prefix = "몬스터 효과: ";
-                                } 
-
-                                log.info("효과 : {}", desc.text());
-                                combinedKorDesc.append(prefix).append("\n").append(desc.text()).append("\n");
-                                idx++;
-                            }
-                        }
-
-                        if (combinedKorDesc.length() > 0) {
-                        cardModel.setKorDesc(combinedKorDesc.toString().trim());
-                        } else {
-                            log.info("한국어 설명을 찾을 수 없습니다.");
-                        }
-                    }
-                } else {
-                    Element korDesc = doc.selectFirst("td.navbox-list > span[lang=ko]");
-                    if (korDesc != null) {
-                        // koreanDescription이 성공적으로 찾아졌을 때의 처리
-                        log.info("효과 : {}", korDesc.text());
-                        cardModel.setKorDesc(korDesc.text());
-                    } else {
-                        korDesc = doc.selectFirst("table.wikitable th:containsOwn(Korean) + td + td > span[lang=ko]");
-                        if (korDesc != null) {
-                            log.info("두번째 사이트 효과 : {}", korDesc.text());
-                            cardModel.setKorDesc(korDesc.text());
-                        } else {
-                            log.info("한국어 설명을 찾을 수 없습니다.");
-                        }
-                    }
-                }
- 
-                if (korName != null) {
-                    // koreanDescription이 성공적으로 찾아졌을 때의 처리
-                    log.info("이름 : {}", korName.text());
-                    cardModel.setKorName(korName.text());
-                } else {
-                    // koreanDescription을 찾지 못했을 때의 처리
-                    korName = doc.selectFirst("table.wikitable th:containsOwn(Korean) + td > span[lang=ko]");
-                    
-                    if (korName != null) {
-                        log.info("이름 : {}", korName.text());
-                        cardModel.setKorName(korName.text());
-                    } else {
-                        log.info("한국어 이름을 찾을 수 없습니다.");
-                    }
-                }
-
-                cardRepository.save(cardModel);
-    
-            } catch (IOException e) {
-                log.error("데이터를 가져오는 중 오류가 발생했습니다.", e);
+            // 이름 추출
+            String korName = extractKorName(doc, spareDoc);
+            if (korName != null) {
+                card.setKorName(korName);
+            } else {
+                log.info("한국어 이름을 찾을 수 없습니다: {}", card.getName());
             }
-            
+
+            // 설명 추출
+            boolean isPendulum = PENDULUM_FRAMES.contains(card.getFrameType());
+            String korDesc = extractKorDesc(doc, spareDoc, isPendulum);
+            if (korDesc != null) {
+                card.setKorDesc(korDesc);
+            } else {
+                log.info("한국어 설명을 찾을 수 없습니다: {}", card.getName());
+            }
+
+            cardRepository.save(card);
         }
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // URL 인코딩: 스페이스→언더바, 그 외 안전하게 인코딩
+    private String encodeCardName(String name) {
+        String tmp = name.replace(" ", "_")
+                         .replace("#", "_");
+        return URLEncoder.encode(tmp, StandardCharsets.UTF_8);
+    }
+
+    // Jsoup 로 문서 가져오기 (실패 시 null 리턴)
+    private Document fetchDoc(String url) {
+        try {
+            return Jsoup.connect(url)
+                        .userAgent("Mozilla/5.0")
+                        .timeout(10_000)
+                        .get();
+        } catch (IOException e) {
+            log.warn("문서 가져오기 실패 URL={}", url, e);
+            return null;
+        }
+    }
+
+    // 한글 이름 추출: 우선 doc, 없으면 spareDoc
+    private String extractKorName(Document doc, Document spareDoc) {
+        if (doc != null) {
+            Element e = doc.selectFirst("td.cardtablerowdata > span[lang=ko]");
+            if (e != null) {
+                return e.text();
+            }
+        }
+        if (spareDoc != null) {
+            Element e = spareDoc.selectFirst(
+                "table.wikitable th:containsOwn(Korean) + td > span[lang=ko]"
+            );
+            if (e != null) {
+                return e.text();
+            }
+        }
+        return null;
+    }
+
+    // 한글 설명 추출: pendulum 여부에 따라 각각 처리
+    private String extractKorDesc(Document doc, Document spareDoc, boolean pendulum) {
+        if (pendulum) {
+            // 1) 메인 사이트 시도
+            String s = extractPendulumDesc(doc, 
+                "td.navbox-list dd > span[lang=ko]");
+            if (s != null) {
+                return s;
+            }
+            // 2) 예비 사이트 시도
+            return extractPendulumDesc(spareDoc,
+                "table.wikitable tr:has(th:containsOwn(Korean)) dl dd > span[lang=ko]");
+        } else {
+            // 일반 카드
+            if (doc != null) {
+                Element e = doc.selectFirst("td.navbox-list > span[lang=ko]");
+                if (e != null) {
+                    return e.text();
+                }
+            }
+            if (spareDoc != null) {
+                Element e = spareDoc.selectFirst(
+                    "table.wikitable th:containsOwn(Korean) + td + td > span[lang=ko]"
+                );
+                if (e != null) {
+                    return e.text();
+                }
+            }
+            return null;
+        }
+    }
+
+    // pendulum 전용 설명 처리: 첫 두 dd만 "펜듈럼 효과" / "몬스터 효과" 로 합침
+    private String extractPendulumDesc(Document doc, String cssQuery) {
+        if (doc == null) return null;
+
+        Elements descs = doc.select(cssQuery);
+        if (descs.isEmpty()) return null;
+
+        String[] prefixes = { "펜듈럼 효과: ", "몬스터 효과: " };
+        StringBuilder sb = new StringBuilder();
+
+        for (int i = 0; i < descs.size() && i < prefixes.length; i++) {
+            sb.append(prefixes[i])
+              .append("\n")
+              .append(descs.get(i).text())
+              .append("\n");
+        }
+        return sb.toString().trim();
+    }
+
 
     public CardInfoDto getCardInfo(String cardName) {
         String korDesc = "";
@@ -242,7 +265,7 @@ public class CardService {
              // 웹 페이지 열기
             driver.get("https://ygoprodeck.com/banlist/");
 
-            Thread.sleep(2000);
+            Thread.sleep(5000);
 
             WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
             WebElement banlistTypeElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banlisttype")));
@@ -260,9 +283,9 @@ public class CardService {
             textView.click();
 
              // 데이터를 가져올 시간을 확보하기 위해 잠시 대기
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banned")));
+            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("forbidden")));
 
-            scrapeListData("banned");
+            scrapeListData("forbidden");
             scrapeListData("limited");
             scrapeListData("semilimited");
 
