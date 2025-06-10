@@ -2,6 +2,32 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './App.css';
 import pako from 'pako';
 
+const PLACEHOLDER_IMAGE = '/back_image/101206057.jpg';
+
+function LazyImage({ src, alt, className, style }) {
+  const [imgSrc, setImgSrc] = useState(PLACEHOLDER_IMAGE);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => setImgSrc(src);
+  }, [src]);
+
+  return <img src={imgSrc} alt={alt} className={className} style={style} />;
+}
+
+function LazyBackground({ src, className }) {
+  const [bg, setBg] = useState(`url(${PLACEHOLDER_IMAGE})`);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = src;
+    img.onload = () => setBg(`url(${src})`);
+  }, [src]);
+
+  return <div className={className} style={{ backgroundImage: bg }}></div>;
+}
+
 function App() {
   const [mainDeck, setMainDeck] = useState([]);
   const [extraDeck, setExtraDeck] = useState([]);
@@ -462,7 +488,7 @@ function App() {
                 ref={(el) => { cardRefs.current[index] = el; overlayRefs.current[index] = el?.querySelector('.overlay'); }}
               >
                 <div className="overlay"></div>
-                <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
+                <LazyBackground src={card.imageUrl} className="card" />
                 {card.restrictionType && card.restrictionType !== 'unlimited' && (
                   <div className="restriction-label">
                     {card.restrictionType === 'forbidden' ? 'X' : card.restrictionType === 'limited' ? '1' : '2'}
@@ -492,7 +518,7 @@ function App() {
                 ref={(el) => { cardRefs.current[mainDeck.length + index] = el; overlayRefs.current[mainDeck.length + index] = el?.querySelector('.overlay'); }}
               >
                 <div className="overlay"></div>
-                <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
+                <LazyBackground src={card.imageUrl} className="card" />
                 {card.restrictionType && card.restrictionType !== 'unlimited' && (
                   <div className="restriction-label">
                     {card.restrictionType === 'forbidden' ? 'X' : card.restrictionType === 'limited' ? '1' : '2'}
@@ -525,7 +551,10 @@ function App() {
               className="search-result-item"
               onClick={() => addCardToDeck(result.imageUrl, result.frameType, result.name)}
             >
-              <img src={`/images/${result.imageUrl.split('/').pop()}`} alt={result.name} />
+              <LazyImage
+                src={`/images/${result.imageUrl.split('/').pop()}`}
+                alt={result.name}
+              />
               {result.restrictionType && result.restrictionType !== 'unlimited' && (
                 <div
                   className={`restriction-label ${
