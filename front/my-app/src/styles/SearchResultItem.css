@@ -1,0 +1,25 @@
+.search-result-item {
+    width: 70px;
+    height: auto;
+    cursor: pointer;
+    margin-bottom: -10px;
+    box-sizing: border-box;
+    position: relative;
+}
+
+.search-result-item img {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.search-result-item p {
+    text-align: center;
+    margin: 0 0 0 0;
+    font-size: 0.56em;
+    line-height: 1;
+}
+
+.search-result-item .restriction-label {
+    font-size: 0.55em;
+}

@@ -1,32 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import './App.css';
+import './styles/App.css';
+
 import pako from 'pako';
-
-const PLACEHOLDER_IMAGE = '/back_image/101206057.jpg';
-
-function LazyImage({ src, alt, className, style }) {
-  const [imgSrc, setImgSrc] = useState(PLACEHOLDER_IMAGE);
-
-  useEffect(() => {
-    const img = new Image();
-    img.src = src;
-    img.onload = () => setImgSrc(src);
-  }, [src]);
-
-  return <img src={imgSrc} alt={alt} className={className} style={style} />;
-}
-
-function LazyBackground({ src, className }) {
-  const [bg, setBg] = useState(`url(${PLACEHOLDER_IMAGE})`);
-
-  useEffect(() => {
-    const img = new Image();
-    img.src = src;
-    img.onload = () => setBg(`url(${src})`);
-  }, [src]);
-
-  return <div className={className} style={{ backgroundImage: bg }}></div>;
-}
+import LazyImage from './components/LazyImage';
+import LazyBackground from './components/LazyBackground';
+import SearchBar from './components/SearchBar';
+import SearchResults from './components/SearchResults';
+import DeckCard from './components/DeckCard';
+import Card from './classes/Card';
+import { sortCards, saveUrl } from './common/deckUtils';
 
 function App() {
   const [mainDeck, setMainDeck] = useState([]);
@@ -143,14 +125,6 @@ function App() {
     setTimeout(() => setMessage(''), 2000);
   };
 
-  const sortCards = (deck) => {
-    return deck.slice().sort((a, b) => {
-      const imageUrlA = a.imageUrl.split('/').pop();
-      const imageUrlB = b.imageUrl.split('/').pop();
-      return imageUrlA.localeCompare(imageUrlB);
-    });
-  };
-
   const addCardToDeck = async (imageUrl, frameType, name) => {
     const response = await fetch(`/cards/cardinfo?cardName=${encodeURIComponent(name)}`);
     if (!response.ok) {
@@ -180,7 +154,12 @@ function App() {
       return;
     }
     
-  const cardData = { imageUrl, frameType, name, restrictionType: restriction };
+    const cardData = new Card({
+      imageUrl,
+      frameType,
+      name,
+      restrictionType: restriction,
+    });
 
 
     if (['link', 'fusion', 'synchro', 'xyz', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum'].includes(frameType)) {
@@ -217,14 +196,6 @@ function App() {
       });
     }
   }, [mainDeck, extraDeck]);
-
-  const saveUrl = (mainDeck, extraDeck) => {
-    const dataObj = { cardsContent: mainDeck, extraDeckContent: extraDeck };
-    const dataStr = JSON.stringify(dataObj);
-    const compressed = pako.deflate(dataStr);
-    const save = btoa(String.fromCharCode(...compressed));
-    window.history.pushState({ data: save }, '', `?deck=${encodeURIComponent(save)}`);
-  };
 
   const viewCardDetail = (cardName) => {
     fetch(`/cards/cardinfo?cardName=${encodeURIComponent(cardName)}`)
@@ -473,109 +444,54 @@ function App() {
         <div id="mainDeckLabel">메인 덱 <span>{mainDeck.length}</span></div>
         <div className="cards" id="cardsContainer">
           {mainDeck.map((card, index) => (
-             <React.Fragment key={`${card.imageUrl.split('/').pop()}-${index}`}>
-            <div className="deck-card-wrapper">
-              <div
-                className="card-container"
-                onClick={() => handleClick(card.name, index)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  if (expandedIndexRef.current !== null) return;
-                  removeCardFromDeck(index, 'main');
-                }}
-                onMouseMove={(e) => handleMouseMove(e, index)}
-                onMouseOut={() => handleMouseOut(index)}
-                ref={(el) => { cardRefs.current[index] = el; overlayRefs.current[index] = el?.querySelector('.overlay'); }}
-              >
-                <div className="overlay"></div>
-                <LazyBackground src={card.imageUrl} className="card" />
-                {card.restrictionType && card.restrictionType !== 'unlimited' && (
-                  <div className="restriction-label">
-                    {card.restrictionType === 'forbidden' ? 'X' : card.restrictionType === 'limited' ? '1' : '2'}
-                  </div>
-                )}
-              </div>
-              <p className="deck-card-name">{card.name}</p>
-            </div>
-            </React.Fragment>
+             <DeckCard
+              key={`${card.imageUrl.split('/').pop()}-${index}`}
+              card={card}
+              index={index}
+              cardRefs={cardRefs}
+              overlayRefs={overlayRefs}
+              onClick={handleClick}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                if (expandedIndexRef.current !== null) return;
+                removeCardFromDeck(index, 'main');
+              }}
+              onMouseMove={handleMouseMove}
+              onMouseOut={handleMouseOut}
+            />
           ))}
         </div>
         <div id="extraDeckLabel">엑스트라 덱 <span>{extraDeck.length}</span></div>
         <div className="cards" id="extraDeck">
           {extraDeck.map((card, index) => (
-             <React.Fragment key={`${card.imageUrl.split('/').pop()}-extra-${index}`}>
-            <div className="deck-card-wrapper">
-              <div
-                className="card-container"
-                onClick={() => handleClick(card.name, mainDeck.length + index)}
-                onContextMenu={(e) => {
-                  e.preventDefault();
-                  if (expandedIndexRef.current !== null) return;
-                  removeCardFromDeck(index, 'extra');
-                }}
-                onMouseMove={(e) => handleMouseMove(e, mainDeck.length + index)}
-                onMouseOut={() => handleMouseOut(mainDeck.length + index)}
-                ref={(el) => { cardRefs.current[mainDeck.length + index] = el; overlayRefs.current[mainDeck.length + index] = el?.querySelector('.overlay'); }}
-              >
-                <div className="overlay"></div>
-                <LazyBackground src={card.imageUrl} className="card" />
-                {card.restrictionType && card.restrictionType !== 'unlimited' && (
-                  <div className="restriction-label">
-                    {card.restrictionType === 'forbidden' ? 'X' : card.restrictionType === 'limited' ? '1' : '2'}
-                  </div>
-                )}
-              </div>
-              <p className="deck-card-name">{card.name}</p>
-            </div>
-            </React.Fragment>
+             <DeckCard
+              key={`${card.imageUrl.split('/').pop()}-extra-${index}`}
+              card={card}
+              index={mainDeck.length + index}
+              cardRefs={cardRefs}
+              overlayRefs={overlayRefs}
+              onClick={handleClick}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                if (expandedIndexRef.current !== null) return;
+                removeCardFromDeck(index, 'extra');
+              }}
+              onMouseMove={handleMouseMove}
+              onMouseOut={handleMouseOut}
+            />
           ))}
         </div>
       </div>
   
       <div className="right-container">
-        <div className="search-container">
-          <input
-            type="search"
-            value={searchKeyword}
-            onChange={e => setSearchKeyword(e.target.value)}
-            onKeyDown={handleSearch}
-            placeholder="eg: Dark Magician⌕"
-          />
-          {isLoading && <div id="loading">Loading...</div>}
-        </div>
+        <SearchBar
+          searchKeyword={searchKeyword}
+          onChange={setSearchKeyword}
+          onSearch={handleSearch}
+          isLoading={isLoading}
+        />
         <div className="divider"></div>
-        <div className="cards" id="searchResult">
-          {searchResults.map((result, index) => (
-            <div
-              key={`${result.imageUrl.split('/').pop()}-${index}`}
-              className="search-result-item"
-              onClick={() => addCardToDeck(result.imageUrl, result.frameType, result.name)}
-            >
-              <LazyImage
-                src={`/images/${result.imageUrl.split('/').pop()}`}
-                alt={result.name}
-              />
-              {result.restrictionType && result.restrictionType !== 'unlimited' && (
-                <div
-                  className={`restriction-label ${
-                    result.restrictionType === 'forbidden'
-                      ? 'forbidden'
-                      : result.restrictionType === 'limited'
-                      ? 'limited'
-                      : 'semi-limited'
-                  }`}
-                >
-                  {result.restrictionType === 'forbidden'
-                    ? null
-                    : result.restrictionType === 'limited'
-                    ? '1'
-                    : '2'}
-                </div>
-              )}
-              <p>{result.name}</p>
-            </div>
-          ))}
-        </div>
+        <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
       </div>
     </div>
   );  

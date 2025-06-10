@@ -51,7 +51,7 @@
         margin-bottom: 30px;
     }
 
-    .card-container {
+        .card-container {
         width: 98px; /* 기존 220px에서 변경 */
         height: 143px; /* 기존 310px에서 변경 */
         position: relative;
@@ -144,7 +144,6 @@
         font-size: 0.55em;
     }
 
-
     .expanded {
         transform: scale(4);
         z-index: 10;
@@ -235,7 +234,6 @@
         border-color: #14bcff;
     }
 
-
     .card-detail-container {
         position: fixed;
         top: 10%;
@@ -322,7 +320,7 @@
         margin-right: auto;
  }
 
-    .deck-card-wrapper {
+     .deck-card-wrapper {
         display: flex;
         flex-direction: column;
         align-items: center;

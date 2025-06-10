@@ -248,8 +248,9 @@ public class CardService {
                 );
                 if (cardImage.getCardModel().getKorName() != null) cardName = cardImage.getCardModel().getKorName();
             }
+            log.info("카드 이름 : {}", cardName);
             CardModel cardModel = cardRepository.findByKorName(cardName).orElseThrow(
-                () -> new IllegalArgumentException("해당 카드가 존재하지 않습니다.")
+                () -> new IllegalArgumentException( "해당 카드가 존재하지 않습니다.")
             );
             if (cardModel.getKorDesc() == null) {
                 korDesc = cardModel.getDesc();

@@ -1,0 +1,122 @@
+.card-container {
+    width: 98px;
+    height: 143px;
+    position: relative;
+    perspective: 1000px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    transition: transform 0.3s ease-out, top 0.3s ease-out, left 0.3s ease-out;
+}
+
+.card-container:hover {
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: none;
+    filter: brightness(1.1) opacity(0.8);
+    transition: all 0.1s;
+}
+
+.card {
+    width: 100%;
+    height: 100%;
+    background-size: contain;
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.deck-card-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 98px;
+    height: 163px;
+    box-sizing: border-box;
+}
+
+.deck-card-name {
+    text-align: center;
+    font-size: 0.6em;
+    margin: 2px 0 8px 0;
+    width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.restriction-label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 1.3em;
+    height: 1.3em;
+    background-color: #000;
+    border: 2px solid #f00;
+    color: #ff0;
+    font-size: 1em;
+    font-weight: bold;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+    filter: brightness(1.1) opacity(0.7);
+    transform: translateX(-10%) translateY(-10%);
+}
+
+.restriction-label.forbidden {
+    background-color: #000;
+}
+
+.restriction-label.forbidden::after {
+    content: "";
+    position: absolute;
+    width: 0.2em;
+    height: 1.8em;
+    background: #f00;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(45deg);
+    border-radius: 0.1em;
+}
+
+.card-container.expanded .restriction-label {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .card-container {
+        max-width: 49px;
+        max-height: 73px;
+    }
+
+    .deck-card-wrapper {
+        width: 49px;
+        height: 93px;
+    }
+
+    .card {
+        max-height: 73px;
+    }
+}
+
+@media (max-width: 480px) {
+    .card-container {
+        max-width: 29.4px;
+        max-height: 42.9px;
+    }
+
+    .deck-card-wrapper {
+        width: 29.4px;
+        height: 63px;
+    }
+
+    .card {
+        max-height: 42.9px;
+    }
+}

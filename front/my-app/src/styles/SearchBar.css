@@ -1,0 +1,32 @@
+.search-container {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+}
+
+.search-container input {
+    height: 30px;
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ced4da;
+    border-radius: 10px;
+    font-size: 1em;
+    outline: none;
+    background: rgba(207, 206, 206, 0.7);
+    color: #0e1f47;
+    transition: border-color 0.3s;
+}
+
+.search-container input::placeholder {
+    color: #b0b3b8;
+}
+
+.search-container input:hover {
+    background-color: #d0d1d4;
+}
+
+.search-container input:focus {
+    border-color: #14bcff;
+}
