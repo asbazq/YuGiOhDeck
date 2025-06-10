@@ -9,6 +9,9 @@ import SearchResults from './components/SearchResults';
 import DeckCard from './components/DeckCard';
 import Card from './classes/Card';
 import { sortCards, saveUrl } from './common/deckUtils';
+import './styles/DeckCard.css';
+import './styles/SearchBar.css';
+import './styles/SearchResultItem.css';
 
 function App() {
   const [mainDeck, setMainDeck] = useState([]);

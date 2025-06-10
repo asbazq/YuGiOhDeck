@@ -51,99 +51,6 @@
         margin-bottom: 30px;
     }
 
-        .card-container {
-        width: 98px; /* 기존 220px에서 변경 */
-        height: 143px; /* 기존 310px에서 변경 */
-        position: relative;
-        perspective: 1000px;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        transition: transform 0.3s ease-out, top 0.3s ease-out, left 0.3s ease-out;
-    }
-
-
-    .card-container:hover {
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
-    }
-
-    .overlay {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: none;
-        filter: brightness(1.1) opacity(0.8);
-        transition: all 0.1s;
-    }
-
-    
-    .card {
-        width: 100%;
-        height: 100%;
-        background-size: contain;
-        background-position: center;
-        background-repeat: no-repeat;
-    }
-
-    @media (max-width: 768px) {
-        .card-container {
-            max-width: 49px; 
-            max-height: 73px;
-        }
-
-        .deck-card-wrapper {
-            width: 49px;
-            height: 93px;
-        }
-
-        .card {
-            max-height: 73px; /* 최대 높이를 줄임 */
-        }
-    }
-
-
-    @media (max-width: 480px) {
-        .card-container {
-            max-width: 29.4px; /* 더 작은 화면에서 최대 너비를 줄임 */
-            max-height: 42.9px;
-        }
-
-         .deck-card-wrapper {
-            width: 29.4px;
-            height: 63px;
-        }
-
-        .card {
-            max-height: 42.9px; /* 최대 높이를 줄임 */
-        }
-    }
-
-    .search-result-item {
-        width: 70px;
-        height: auto;
-        cursor: pointer;
-        margin-bottom: -10px;
-        box-sizing: border-box;
-        position: relative;
-    }
-
-    .search-result-item img {
-        width: 100%;
-        height: auto;
-        display: block;
-    }
-
-    .search-result-item p {
-        text-align: center;
-        margin: 0 0 0 0;
-        font-size: 0.56em;
-        line-height: 1;
-    }
-
-    .search-result-item .restriction-label {
-        font-size: 0.55em;
-    }
-
     .expanded {
         transform: scale(4);
         z-index: 10;
@@ -201,39 +108,6 @@
         margin: 60px 0;
     }
 
-    .search-container {
-        position: absolute; /* 절대 위치로 설정 */
-        top: 20px; /* 상단에서의 거리 설정 */
-        left: 50%; /* 중앙 정렬 */
-        transform: translateX(-50%); /* 중앙 정렬 보정 */
-        width: 80%; /* 원하는 너비 설정 */
-    }
-
-    .search-container input {
-        height: 30px;
-        width: 100%; /* 부모 컨테이너에 맞게 너비 설정 */
-        padding: 10px;
-        border: 1px solid #ced4da;
-        border-radius: 10px;
-        font-size: 1em;
-        outline: none;
-        background: rgba(207, 206, 206, 0.7);
-        color: #0e1f47;
-        transition: border-color 0.3s;
-    }
-    
-    .search-container input::placeholder {
-        color: #b0b3b8;
-    }
-
-    .search-container  input:hover {
-        background-color: #d0d1d4;
-    }
-
-    .search-container input:focus {
-        border-color: #14bcff;
-    }
-
     .card-detail-container {
         position: fixed;
         top: 10%;
@@ -265,7 +139,7 @@
         position: fixed;
         bottom: 20px; /* 화면 하단에서의 거리 */
         right: 20px; /* 화면 우측에서의 거리 */
-         z-index: 10;
+        z-index: 10;
     }
 
     .action-button {
@@ -320,67 +194,8 @@
         margin-right: auto;
  }
 
-     .deck-card-wrapper {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        width: 98px;
-        height: 163px;
-        box-sizing: border-box;
-    }
 
-    .deck-card-name {
-        text-align: center;
-        font-size: 0.6em;
-        margin: 2px 0 8px 0;
-        width: 100%;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
 
-    .restriction-label {
-        position: absolute;
-        top: 0;
-        left: 0;
-        /* 원 크기 */
-        width: 1.3em;
-        height: 1.3em;
-        /* 배경 및 테두리 */
-        background-color: #000;
-        border: 2px solid #f00;
-        /* 글자 스타일 */
-        color: #ff0;
-        font-size: 1em;
-        font-weight: bold;
-        /* 완전한 원 */
-        border-radius: 50%;
-        /* 문자 가로·세로 중앙 정렬 */
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        /* 레이어 순서 보장 */
-        z-index: 1;
-        filter: brightness(1.1) opacity(0.7);
-        transform: translateX(-10%) translateY(-10%);
-    }
 
-    /* forbidden */
-    .restriction-label.forbidden {
-        background-color: #000;
-    }
-    .restriction-label.forbidden::after {
-        content: "";
-        position: absolute;
-        width: 0.2em;
-        height: 1.8em;
-        background: #f00;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%) rotate(45deg);
-        border-radius: 0.1em;
-    }
 
-    .card-container.expanded .restriction-label {
-        display: none;
-    }
+

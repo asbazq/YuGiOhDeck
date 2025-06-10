@@ -86,10 +86,12 @@ public class CardService {
                 limit = limitRegulationRepository.findByCardName(cardModel.getKorName());
             }
             String restrictionType = limit != null ? limit.getRestrictionType() : "unlimited";
+            String displayName = cardModel.getKorName() != null ? 
+                                 cardModel.getKorName() : cardModel.getName();
             if (cardImages.isEmpty()) {
                 return new CardMiniDto(
                     cardModel.getId(),
-                    cardModel.getKorName(),
+                    displayName,
                     "",
                     "",
                     cardModel.getFrameType(),
@@ -99,7 +101,7 @@ public class CardService {
             CardImage firstImage = cardImages.get(0);
             return new CardMiniDto(
                 cardModel.getId(),
-                cardModel.getKorName(),
+                displayName,
                 firstImage.getImageUrlSmall(),
                 firstImage.getImageUrl(),
                 cardModel.getFrameType(),
@@ -241,22 +243,32 @@ public class CardService {
     public CardInfoDto getCardInfo(String cardName) {
         String korDesc = "";
         String restrictionType = "unlimited";
+        CardModel cardModel;
+
         if (Pattern.matches("\\d+", cardName)) {
-                Long cardId = (long) Integer.parseInt(cardName);
-                CardImage cardImage = cardImgRepository.findById(cardId).orElseThrow(
-                    () -> new IllegalArgumentException("해당 카드가 존재하지 않습니다.")
-                );
-                if (cardImage.getCardModel().getKorName() != null) cardName = cardImage.getCardModel().getKorName();
-            }
-            log.info("카드 이름 : {}", cardName);
-            CardModel cardModel = cardRepository.findByKorName(cardName).orElseThrow(
-                () -> new IllegalArgumentException( "해당 카드가 존재하지 않습니다.")
-            );
-            if (cardModel.getKorDesc() == null) {
-                korDesc = cardModel.getDesc();
-            } else {
-                korDesc = cardModel.getKorDesc();
-            }
+            Long cardId = Long.parseLong(cardName);
+            CardImage cardImage = cardImgRepository.findById(cardId).orElseThrow(
+                () -> new IllegalArgumentException("해당 카드가 존재하지 않습니다."));
+            cardModel = cardImage.getCardModel();
+        } else {
+            cardModel = cardRepository.findByKorName(cardName)
+                                    .orElseGet(() -> {
+                                        CardModel byName = cardRepository.findByName(cardName);
+                                        if (byName == null) {
+                                            throw new IllegalArgumentException("해당 카드가 존재하지 않습니다.");
+                                        }
+                                        return byName;
+                                    });
+        }
+
+        String displayName = cardModel.getKorName() != null ?
+                cardModel.getKorName() : cardModel.getName();
+
+        if (cardModel.getKorDesc() == null) {
+            korDesc = cardModel.getDesc();
+        } else {
+            korDesc = cardModel.getKorDesc();
+        }
         String enRace = cardModel.getRace();
         RaceEnum korRace = RaceEnum.fromEnglishName(enRace);
         LimitRegulation limitRegulation = limitRegulationRepository.findByCardName(cardModel.getName());
@@ -266,7 +278,7 @@ public class CardService {
         if (limitRegulation != null) {
             restrictionType = limitRegulation.getRestrictionType();
         }
-        return new CardInfoDto(cardName, korDesc, korRace.getRace(), restrictionType);
+        return new CardInfoDto(displayName, korDesc, korRace.getRace(), restrictionType);
     }
 
     // 리미티드 레귤레이션 크롤링

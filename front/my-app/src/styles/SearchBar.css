@@ -1,9 +1,10 @@
 .search-container {
-    position: absolute;
-    top: 20px;
-    left: 50%;
+    position: fixed; /* 스크롤과 상관없이 화면 상단에 고정 */
+    top: 20px; /* 화면 상단에서의 거리 */
+    left: 90%;
     transform: translateX(-50%);
-    width: 80%;
+    width: 15%;
+    z-index: 2; /* 다른 요소 위에 표시 */
 }
 
 .search-container input {
