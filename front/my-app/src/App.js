@@ -38,25 +38,36 @@ function App() {
   const expandedIndexRef = useRef(null);
   const isAnimatingRef = useRef(false);
 
-  const searchCards = useCallback((keyWord, page) => {
+  const searchCards = useCallback(async (keyWord, page) => {
     if (!hasMoreResults || isLoading) return;
 
     setIsLoading(true);
-    fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&page=${page}&size=28`)
-      .then(response => {
-        if (!response.ok) throw new Error('Network response was not ok');
-        return response.json();
-      })
-      .then(data => {
-        setSearchResults(prevResults => page === 0 ? data.content : [...prevResults, ...data.content]);
-        setHasMoreResults(!data.last);
-        setCurrentPage(data.number);
-        setIsLoading(false);
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        setIsLoading(false);
-      });
+    try {
+      const response = await fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&page=${page}&size=28`);
+      if (!response.ok) throw new Error('Network response was not ok');
+      const data = await response.json();
+
+      const resultsWithInfo = await Promise.all(
+        data.content.map(async (result) => {
+          try {
+            const infoRes = await fetch(`/cards/cardinfo?cardName=${encodeURIComponent(result.name)}`);
+            if (!infoRes.ok) throw new Error('info error');
+            const info = await infoRes.json();
+            return { ...result, restrictionType: (info.restrictionType || 'unlimited').toLowerCase() };
+          } catch {
+            return { ...result, restrictionType: 'unlimited' };
+          }
+        })
+      );
+
+      setSearchResults(prevResults => page === 0 ? resultsWithInfo : [...prevResults, ...resultsWithInfo]);
+      setHasMoreResults(!data.last);
+      setCurrentPage(data.number);
+    } catch (error) {
+      console.error('Error:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, [hasMoreResults, isLoading]);
 
   useEffect(() => {
@@ -114,21 +125,44 @@ function App() {
     });
   };
 
-  const addCardToDeck = (imageUrl, frameType, name) => {
+  const addCardToDeck = async (imageUrl, frameType, name) => {
+    const response = await fetch(`/cards/cardinfo?cardName=${encodeURIComponent(name)}`);
+    if (!response.ok) {
+      showMessage('카드 정보를 불러오지 못했습니다.');
+      return;
+    }
+    const info = await response.json();
+    const restriction = (info.restrictionType || 'unlimited').toLowerCase();
+
+    let limit = 3;
+    let resType = '';
+    if (restriction === 'forbidden') {
+      showMessage('금지 카드입니다.');
+      return;
+    } else if (restriction === 'limited') {
+      limit = 1;
+      resType = '제한'
+    } else if (restriction === 'semilimited') {
+      limit = 2;
+      resType = '준제한'
+    }
     const cardImageId = imageUrl.split('/').pop();
     const count = [...mainDeck, ...extraDeck].filter(card => card.imageUrl.includes(cardImageId)).length;
 
-    if (count >= 3) {
-      showMessage('같은 카드는 3장만 추가 가능합니다');
+    if (count >= limit) {
+      showMessage(`같은 ${resType} 카드는 ${limit}장만 추가 가능합니다`);
       return;
     }
+    
+  const cardData = { imageUrl, frameType, name, restrictionType: restriction };
+
 
     if (['link', 'fusion', 'synchro', 'xyz', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum'].includes(frameType)) {
       if (extraDeck.length >= 15) {
         showMessage('엑스트라 덱은 15장까지만 가능합니다.');
         return;
       }
-      const newExtraDeck = sortCards([...extraDeck, { imageUrl, frameType, name }]);
+      const newExtraDeck = sortCards([...extraDeck, cardData]);
       setExtraDeck(newExtraDeck);
       saveUrl(mainDeck, newExtraDeck);
     } else {
@@ -136,7 +170,7 @@ function App() {
         showMessage('메인 덱은 60장까지만 가능합니다.');
         return;
       }
-      const newMainDeck = sortCards([...mainDeck, { imageUrl, frameType, name }]);
+      const newMainDeck = sortCards([...mainDeck, cardData]);
       setMainDeck(newMainDeck);
       saveUrl(newMainDeck, extraDeck);
     }
@@ -391,6 +425,7 @@ function App() {
   return (
     <div className="container">
     <div ref={expandedOverlayRef} className="expanded-overlay"></div>
+    <div id="message" style={{ display: message ? 'block' : 'none' }}>{message}</div>
       {isExpanded && cardDetail && (
         <div className="card-detail-container" style={{ display: 'block' }}>
           <div id="cardDetailContainer">{cardDetail.name}</div>
@@ -428,6 +463,11 @@ function App() {
               >
                 <div className="overlay"></div>
                 <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
+                {card.restrictionType && card.restrictionType !== 'unlimited' && (
+                  <div className="restriction-label">
+                    {card.restrictionType === 'forbidden' ? 'X' : card.restrictionType === 'limited' ? '1' : '2'}
+                  </div>
+                )}
               </div>
               <p className="deck-card-name">{card.name}</p>
             </div>
@@ -453,6 +493,11 @@ function App() {
               >
                 <div className="overlay"></div>
                 <div className="card" style={{ backgroundImage: `url(${card.imageUrl})` }}></div>
+                {card.restrictionType && card.restrictionType !== 'unlimited' && (
+                  <div className="restriction-label">
+                    {card.restrictionType === 'forbidden' ? 'X' : card.restrictionType === 'limited' ? '1' : '2'}
+                  </div>
+                )}
               </div>
               <p className="deck-card-name">{card.name}</p>
             </div>
@@ -481,6 +526,23 @@ function App() {
               onClick={() => addCardToDeck(result.imageUrl, result.frameType, result.name)}
             >
               <img src={`/images/${result.imageUrl.split('/').pop()}`} alt={result.name} />
+              {result.restrictionType && result.restrictionType !== 'unlimited' && (
+                <div
+                  className={`restriction-label ${
+                    result.restrictionType === 'forbidden'
+                      ? 'forbidden'
+                      : result.restrictionType === 'limited'
+                      ? 'limited'
+                      : 'semi-limited'
+                  }`}
+                >
+                  {result.restrictionType === 'forbidden'
+                    ? null
+                    : result.restrictionType === 'limited'
+                    ? '1'
+                    : '2'}
+                </div>
+              )}
               <p>{result.name}</p>
             </div>
           ))}

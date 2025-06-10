@@ -69,7 +69,7 @@ public class CardService {
 
         // 브라우저를 headless 모드로 설정
         ChromeOptions options = new ChromeOptions();
-        // options.addArguments("--headless"); // 브라우저 창을 표시하지 않음
+        options.addArguments("--headless"); // 브라우저 창을 표시하지 않음
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
 
@@ -81,13 +81,19 @@ public class CardService {
         Page<CardModel> cards = cardRepository.searchByNameContaining(keyWord, pageable);
         return cards.map(cardModel -> {
             List<CardImage> cardImages = cardImgRepository.findByCardModel(cardModel);
+            LimitRegulation limit = limitRegulationRepository.findByCardName(cardModel.getName());
+            if (limit == null && cardModel.getKorName() != null) {
+                limit = limitRegulationRepository.findByCardName(cardModel.getKorName());
+            }
+            String restrictionType = limit != null ? limit.getRestrictionType() : "unlimited";
             if (cardImages.isEmpty()) {
                 return new CardMiniDto(
                     cardModel.getId(),
                     cardModel.getKorName(),
                     "",
                     "",
-                    cardModel.getFrameType()
+                    cardModel.getFrameType(),
+                    restrictionType
                 );
             }
             CardImage firstImage = cardImages.get(0);
@@ -96,7 +102,8 @@ public class CardService {
                 cardModel.getKorName(),
                 firstImage.getImageUrlSmall(),
                 firstImage.getImageUrl(),
-                cardModel.getFrameType()
+                cardModel.getFrameType(),
+                restrictionType
             );
         });
     }
@@ -251,7 +258,10 @@ public class CardService {
             }
         String enRace = cardModel.getRace();
         RaceEnum korRace = RaceEnum.fromEnglishName(enRace);
-        LimitRegulation limitRegulation = limitRegulationRepository.findByCardName(cardName);
+        LimitRegulation limitRegulation = limitRegulationRepository.findByCardName(cardModel.getName());
+        if (limitRegulation == null && cardModel.getKorName() != null) {
+            limitRegulation = limitRegulationRepository.findByCardName(cardModel.getKorName());
+        }
         if (limitRegulation != null) {
             restrictionType = limitRegulation.getRestrictionType();
         }

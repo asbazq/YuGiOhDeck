@@ -76,6 +76,7 @@
         transition: all 0.1s;
     }
 
+    
     .card {
         width: 100%;
         height: 100%;
@@ -123,11 +124,13 @@
         cursor: pointer;
         margin-bottom: -10px;
         box-sizing: border-box;
+        position: relative;
     }
 
     .search-result-item img {
         width: 100%;
         height: auto;
+        display: block;
     }
 
     .search-result-item p {
@@ -136,6 +139,11 @@
         font-size: 0.56em;
         line-height: 1;
     }
+
+    .search-result-item .restriction-label {
+        font-size: 0.55em;
+    }
+
 
     .expanded {
         transform: scale(4);
@@ -331,4 +339,50 @@
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+    }
+
+    .restriction-label {
+        position: absolute;
+        top: 0;
+        left: 0;
+        /* 원 크기 */
+        width: 1.3em;
+        height: 1.3em;
+        /* 배경 및 테두리 */
+        background-color: #000;
+        border: 2px solid #f00;
+        /* 글자 스타일 */
+        color: #ff0;
+        font-size: 1em;
+        font-weight: bold;
+        /* 완전한 원 */
+        border-radius: 50%;
+        /* 문자 가로·세로 중앙 정렬 */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        /* 레이어 순서 보장 */
+        z-index: 1;
+        filter: brightness(1.1) opacity(0.7);
+        transform: translateX(-10%) translateY(-10%);
+    }
+
+    /* forbidden */
+    .restriction-label.forbidden {
+        background-color: #000;
+    }
+    .restriction-label.forbidden::after {
+        content: "";
+        position: absolute;
+        width: 0.2em;
+        height: 1.8em;
+        background: #f00;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(45deg);
+        border-radius: 0.1em;
+    }
+
+    .card-container.expanded .restriction-label {
+        display: none;
     }
