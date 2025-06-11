@@ -12,6 +12,10 @@ import { sortCards, saveUrl } from './common/deckUtils';
 import './styles/DeckCard.css';
 import './styles/SearchBar.css';
 import './styles/SearchResultItem.css';
+import './styles/Message.css'
+import alertCard from './img/black-magician-girl-8bit.png';
+
+
 
 function App() {
   const [mainDeck, setMainDeck] = useState([]);
@@ -125,7 +129,7 @@ function App() {
 
   const showMessage = (msg) => {
     setMessage(msg);
-    setTimeout(() => setMessage(''), 2000);
+    setTimeout(() => setMessage(''), 3000);
   };
 
   const addCardToDeck = async (imageUrl, frameType, name) => {
@@ -424,8 +428,23 @@ function App() {
 
   return (
     <div className="container">
+      <button 
+        id="resetButton" 
+        className="action-button" 
+        onClick={() => { 
+          setMainDeck([]); setExtraDeck([]); saveUrl([], []); window.history.pushState({}, '', '/'); 
+          }}
+      >
+        초기화
+      </button>
+      <button
+        id="effectButton"
+        className={`action-button ${effectsEnabled ? 'on' : 'off'}`}
+        onClick={() => setEffectsEnabled(prev => !prev)}
+      >
+        {effectsEnabled ? '이펙트' : '이펙트'}
+      </button>
     <div ref={expandedOverlayRef} className="expanded-overlay"></div>
-    <div id="message" style={{ display: message ? 'block' : 'none' }}>{message}</div>
       {isExpanded && cardDetail && (
         <div className="card-detail-container" style={{ display: 'block' }}>
           <div id="cardDetailContainer">{cardDetail.name}</div>
@@ -433,17 +452,31 @@ function App() {
       )}
       {isExpanded && cardDetail && (
         <div className="card-detail-desc-container" style={{ display: 'block' }}>
-          {cardDetail.korDesc}
+          <div className="race-text" style={{ marginBottom: '4px', fontWeight: 'bold' }}>
+            [{cardDetail.race}]
+          </div>
+          {/* 2. 설명(description) */}
+          <div className="desc-text" style={{ whiteSpace: 'pre-line' }}>
+            {cardDetail.korDesc}
+          </div>
         </div>
       )}
       <div className="left-container">
+        <footer className="app-footer">
+          <small>
+            © 1996 Kazuki Takahashi.<br/>
+            © 2025 Konami Digital Entertainment Co., Ltd. All rights reserved.<br/>
+            “YU-GI-OH!” and associated logos are registered trademarks of Konami Digital Entertainment Co., Ltd.<br/>
+            Card illustration © Kazuki Takahashi / Konami Digital Entertainment Co., Ltd. All rights reserved.
+          </small>
+        </footer>
+        <div id="msgWrap" style={{ display: message ? 'flex' : 'none' }}>
+          <div id="msgBubble">{message}</div>
+          <img src={alertCard} alt="alert" className="msgImg" />
+        </div>
         <div id="title">YuGiOh Deck</div>
         <div className="description">이 웹사이트는 YuGiOh 덱 빌더입니다. 원하는 카드를 추가하고 덱을 구성해보세요!</div>
         <div className="contact-info">오류 문의 : wjdgns5488@naver.com</div>
-        <button id="resetButton" className="action-button" onClick={() => { setMainDeck([]); setExtraDeck([]); saveUrl([], []); window.history.pushState({}, '', '/'); }}>Reset</button>
-        <button id="effectButton" className="action-button" onClick={() => setEffectsEnabled(!effectsEnabled)}>
-          {effectsEnabled ? '이펙트 OFF' : '이펙트 ON'}
-        </button>
         <div id="mainDeckLabel">메인 덱 <span>{mainDeck.length}</span></div>
         <div className="cards" id="cardsContainer">
           {mainDeck.map((card, index) => (

@@ -15,9 +15,10 @@
 
 .search-result-item p {
     text-align: center;
-    margin: 0 0 0 0;
+    margin: 3px 0 3px 0;
     font-size: 0.56em;
     line-height: 1;
+    font-family: 'NeoDunggeunmo', sans-serif;
 }
 
 .search-result-item .restriction-label {

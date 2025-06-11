@@ -1,201 +1,183 @@
-    body {
-        margin: 0;
-        font-family: 'Noto Sans KR', Arial, sans-serif;
-        display: block;
-        justify-content: center;
-        color: #212122;
-         background: linear-gradient(135deg, #f0f4ff, #e0e7ee);
-    }
+html,body{
+    margin:0;
+    font-family: 'NeoDunggeunmo', sans-serif;
+    color:#111;
+    background:#dcdcdc;
+    /* 8-bit 격자 배경 */
+    background-image:repeating-linear-gradient(45deg,#f1f1f1 0 2px,#dcdcdc 2px 4px);
+}
 
-    .container {
-        display: flex;
-        justify-content: center;
-        width: 100%;
-        margin: 0 auto; /* 중앙 정렬 */
-        box-sizing: border-box;
-    }
+/* ---------- LAYOUT ---------- */
+.container{
+    display:flex;
+    justify-content:center;
+    width:100%;
+    box-sizing:border-box;
+}
 
-    .left-container, .right-container {
-        min-height: 100vh; /* 최소 높이를 화면의 높이와 같게 설정 */
-        height: auto; /* 컨테이너의 높이를 자동으로 조정 */
-        display: flex;
-        flex-direction: column;
-        justify-content: flex-start;
-        align-items: center;
-        box-sizing: border-box;
-        padding: 14px;
-        background: #fbfdff;
-        border-radius: 10px;
-        margin: 5px;
-        box-sizing: border-box;
-        overflow-y: auto;
-    }
+.left-container,
+.right-container{
+    position:relative;
+    min-height:100vh;
+    background:#fff;
+    border:4px solid #000;
+    box-shadow:8px 8px 0 0 #000;
+    padding:14px;
+    margin:6px;
+    overflow-y:auto;
+}
 
-    .left-container {
-        width: 80%;
-    }
+.left-container{width:80%;}
+.right-container{width:20%;position:relative;}
 
-    .right-container {
-        width: 20%;
-        position: relative; 
-    }
+/* ---------- TITLES & LABELS ---------- */
+#title{
+    font-size:25px;
+    text-align:center;
+    letter-spacing:2px;
+    margin:0 0 14px;
+}
 
-    .cards {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        justify-content: center;
-    }
+#mainDeckLabel,
+#extraDeckLabel{
+    font-size:18px;
+    padding-bottom:4px;
+    border-bottom:2px solid #000;
+    margin: 20px 0 12px;
+}
 
-    #cardsContainer {
-        margin-bottom: 30px;
-    }
+/* ---------- BUTTONS ---------- */
+.action-button,
+button#resetButton{
+    display:inline-block;
+    padding:8px 16px;
+    background:#3a5cda;
+    color:#fff;
+    border:4px solid #000;
+    font-family: 'NeoDunggeunmo', sans-serif;
+    font-size: 15px;
+    box-shadow:inset 4px 4px 0 #2742a0,
+               inset -4px -4px 0 #2742a0,
+               4px 4px 0 #000;
+    text-shadow:1px 1px 0 #000;
+    cursor:pointer;
+    transition:transform .05s;
+}
 
-    .expanded {
-        transform: scale(4);
-        z-index: 10;
-        position: fixed;
-        top: 50%;
-        left: 41%;
-        /* transform-origin: center center; */
-    }
+#resetButton,
+#effectButton{
+    min-width:80px;
+    min-height:40px;
+}
 
-    .expanded-overlay {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100vw;
-        height: 100vh;
-        background: rgba(0, 0, 0, 0.7);
-        z-index: 5;
-        display: none;
-    }
+#effectButton.on{
+    background:#3a5cda;                    
+    box-shadow:inset 4px 4px 0 #2742a0,
+               inset -4px -4px 0 #2742a0,
+               4px 4px 0 #000;
+    color:#fff;
+}
+#effectButton.off{
+    background:#ff5555;                     
+    box-shadow:inset 4px 4px 0 #b33838,
+               inset -4px -4px 0 #b33838,
+               4px 4px 0 #000;
+    color:#fff;
+}
 
+/* Hover·Active 감촉 */
+#effectButton.on:hover{ background:#2d4373; }
+#effectButton.off:hover{ background:#d24545; }
 
-    #message {
-        position: fixed;
-        top: 20px;
-        left: 41%;
-        transform: translateX(-50%);
-        background: #ffdddd;
-        color: #d8000c;
-        padding: 10px;
-        border: 1px solid #d8000c;
-        border-radius: 5px;
-        display: none;
-        z-index: 10;
-    }
+#effectButton.on:active,
+#effectButton.off:active{
+    transform:translateY(2px);
+    box-shadow:inset 4px 4px 0 rgba(0,0,0,.25),
+               inset -4px -4px 0 rgba(0,0,0,.25),
+               2px 2px 0 #000;
+}
 
+#resetButton:hover{ background:#2d4373; }
+#resetButton:active{
+    transform:translateY(2px);
+    box-shadow:inset 4px 4px 0 rgba(0,0,0,.25),
+               inset -4px -4px 0 rgba(0,0,0,.25),
+               2px 2px 0 #000;
+}
 
-    #mainDeckLabel, #extraDeckLabel {
-        width: 100%;
-        text-align: left;
-        margin: 0 0 10px 0;
-        font-weight: bold;
-        font-size: 0.9em;
-        border-bottom: 2px solid #7e7c7c;
-        padding-bottom: 5px;
-    }
-
-    #searchLabel {
-        margin: 20px 0;
-    }
-
-    .divider {
-        width: 100%;
-        height: 2px;
-        background-color: #615e5e;
-        margin: 60px 0;
-    }
-
-    .card-detail-container {
-        position: fixed;
-        top: 10%;
-        left: 41%;
-        transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.7);
-        padding: 3px 10px;
-        border-radius: 10px;
-        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
-        display: none;
-        z-index: 15;
-    }
-
-    .card-detail-desc-container {
-        position: fixed;
-        bottom: 5%;
-        left: 41%;
-        transform: translateX(-50%);
-        background: rgba(255, 255, 255, 0.5); /* 50% 투명도 */
-        padding: 7px;
-        border-radius: 10px;
-        box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
-        white-space: pre-line;
-        display: none;
-        z-index: 15;
-    }
-
-    button#resetButton {
-        position: fixed;
-        bottom: 20px; /* 화면 하단에서의 거리 */
-        right: 20px; /* 화면 우측에서의 거리 */
-        z-index: 10;
-    }
-
-    .action-button {
-        margin: 5px 0;
-        padding: 8px 16px;
-        background-color: #3b5998;
-        border: none;
-        color: white;
-        border-radius: 10px;
-        cursor: pointer;
-        font-size: 1em;
-        transition: background-color 0.3s, box-shadow 0.3s;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    }
-
-    button#resetButton:hover {
-        background-color: #2d4373;
-        box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
-    }
-
-    .action-button:hover {
-        background-color: #2d4373;
-        box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
-    }
-
-    .contact-info:hover {
-        text-decoration: underline;
-    }
-
-    #cardDetailContainer {
-        font-weight: bold;
-        font-size: 1.2em;
-        margin-bottom: 10px;
-        text-align: center;
-    }
-
-    #title {
-        font-size: 24px;
-        font-weight: bold;
-        margin-bottom: 10px;
-    }
-
-    .description {
-        font-size: 14px;
-        margin-bottom: 20px;
-    }
-
-    .contact-info {
-        font-size: 12px;
-        color: #666;
-        margin-bottom: 20px;
-        margin-right: auto;
- }
+/* 위치 고정 */
+#effectButton{
+    position:fixed;
+    bottom:20px;
+    right:120px;
+    z-index:4;
+}
+button#resetButton{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    z-index:4;
+}
 
 
 
+/* ---------- INPUT / SEARCH ---------- */
+input{
+    width:100%;
+    padding:6px 10px;
+    background:#cfd2ff;
+    border:4px solid #000;
+    box-shadow:inset 4px 4px 0 #7d7d7d;
+    font-size:10px;
+    color:#000;
+}
 
+/* ---------- CARDS ---------- */
+.cards{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
+.card-thumb{
+    width:60px;height:88px;
+    border:4px solid #000;
+    background:#bcbcbc;
+}
+.expanded{
+    transform:scale(4);
+    z-index:10;
+    position:fixed;
+    top:50%;left:41%;
+}
+.expanded-overlay{
+    position:fixed;top:0;left:0;width:100vw;height:100vh;
+    background:rgba(0,0,0,.7);z-index:5;display:none;
+}
 
+/* ---------- DETAIL WINDOWS ---------- */
+.card-detail-container,
+.card-detail-desc-container{
+    position:fixed;
+    left:41%;
+    transform:translateX(-50%);
+    border:4px solid #000;
+    background:rgba(255,255,255,.8);
+    box-shadow:8px 8px 0 #272727;
+    border-radius:0;
+    z-index:15;
+    padding:10px;
+}
+.card-detail-container{top:10%;}
+.card-detail-desc-container{bottom:5%;white-space:pre-line;}
 
+/* ---------- MISC ---------- */
+.divider{width:100%;height:4px;background:#000;margin:60px 0;}
+
+::-webkit-scrollbar{width:12px;}
+::-webkit-scrollbar-track{background:#fff;border-left:4px solid #000;}
+::-webkit-scrollbar-thumb{background:#3a5cda;border:4px solid #000;}
+
+.app-footer {
+  text-align: right;
+  padding: 12px 0;
+  font-size: 10px;
+  color: #666;
+  background: rgba(255,255,255,0.8);
+  font-family: 'Press Start 2P', monospace;
+}
