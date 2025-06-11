@@ -77,8 +77,8 @@ public class CardService {
     }
 
 
-    public Page<CardMiniDto> search(String keyWord, Pageable pageable) {
-        Page<CardModel> cards = cardRepository.searchByNameContaining(keyWord, pageable);
+    public Page<CardMiniDto> search(String keyWord, String frameType, Pageable pageable) {
+        Page<CardModel> cards = cardRepository.searchByNameContaining(keyWord, frameType == null ? "" : frameType, pageable);
         return cards.map(cardModel -> {
             List<CardImage> cardImages = cardImgRepository.findByCardModel(cardModel);
             LimitRegulation limit = limitRegulationRepository.findByCardName(cardModel.getName());

@@ -17,18 +17,19 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     // @Query("SELECT c FROM CardModel c WHERE LOWER(c.name) LIKE LOWER(CONCAT ('%', :query, '%'))")
     // List<CardModel> searchByNameContaining(@Param("query")String query);
 
-    @Query("""
+   @Query("""
        SELECT c
        FROM   CardModel c
-       WHERE  c.korName LIKE CONCAT('%', :query, '%')
-          OR  c.name    LIKE CONCAT('%', :query, '%')
+       WHERE  (:frameType = '' OR c.frameType = :frameType)
+          AND (c.korName LIKE CONCAT('%', :query, '%')
+           OR  c.name    LIKE CONCAT('%', :query, '%'))
        """)
-    Page<CardModel> searchByNameContaining(@Param("query") String query, Pageable pageable);
-
-    
-    CardModel findByName(String name);
-    Optional<CardModel> findByKorName(String korName);
-    
-    List<CardModel> findByCreatedAtAfter(LocalDateTime localDateTime);
-    boolean existsByName(String name);
+   Page<CardModel> searchByNameContaining(@Param("query") String query,
+                                          @Param("frameType") String frameType,
+                                          Pageable pageable);
+   CardModel findByName(String name);
+   Optional<CardModel> findByKorName(String korName);
+   
+   List<CardModel> findByCreatedAtAfter(LocalDateTime localDateTime);
+   boolean existsByName(String name);
 }

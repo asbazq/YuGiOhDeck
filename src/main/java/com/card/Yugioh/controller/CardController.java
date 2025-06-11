@@ -22,8 +22,10 @@ public class CardController {
 
     @GetMapping("/search")
     @ResponseBody
-    public Page<CardMiniDto> CardSearch(@RequestParam String keyWord, Pageable pageable) {
-        return cardService.search(keyWord, pageable);
+    public Page<CardMiniDto> CardSearch(@RequestParam String keyWord,
+                                        @RequestParam(required = false, defaultValue = "") String frameType,
+                                        Pageable pageable) {
+        return cardService.search(keyWord, frameType, pageable);
     }    
 
     @GetMapping("/cardinfo")

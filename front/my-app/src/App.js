@@ -22,6 +22,7 @@ function App() {
   const [extraDeck, setExtraDeck] = useState([]);
   const [searchResults, setSearchResults] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [frameType, setFrameType] = useState('');
   const [currentPage, setCurrentPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMoreResults, setHasMoreResults] = useState(true);
@@ -53,12 +54,12 @@ function App() {
   const expandedIndexRef = useRef(null);
   const isAnimatingRef = useRef(false);
 
-  const searchCards = useCallback(async (keyWord, page) => {
+  const searchCards = useCallback(async (keyWord, frame, page) => {
     if (!hasMoreResults || isLoading) return;
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&page=${page}&size=28`);
+      const response = await fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&frameType=${encodeURIComponent(frame)}&page=${page}&size=24`);
       if (!response.ok) throw new Error('Network response was not ok');
       const data = await response.json();
 
@@ -107,7 +108,7 @@ function App() {
     const handleScroll = () => {
       if (window.innerHeight + document.documentElement.scrollTop >= document.documentElement.offsetHeight - 1 &&
         hasMoreResults && !isLoading) {
-        searchCards(searchKeyword, currentPage + 1);
+        searchCards(searchKeyword, frameType, currentPage + 1);
       }
     };
 
@@ -120,7 +121,7 @@ function App() {
       if (/^[a-zA-Z0-9 가-힣()]*$/.test(searchKeyword)) {
         setCurrentPage(0);
         setHasMoreResults(true);
-        searchCards(searchKeyword, 0);
+        searchCards(searchKeyword, frameType, 0);
       } else {
         showMessage('유효하지 않은 입력입니다.');
       }
@@ -525,6 +526,8 @@ function App() {
           onChange={setSearchKeyword}
           onSearch={handleSearch}
           isLoading={isLoading}
+          frameType={frameType}
+          onFrameChange={setFrameType}
         />
         <div className="divider"></div>
         <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
