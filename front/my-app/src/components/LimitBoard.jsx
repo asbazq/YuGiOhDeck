@@ -88,7 +88,6 @@ function LimitBoard({ cards, showMessage = () => {} }) {
             className="hide-button action-button"
             onClick={() => setPadHidden(true)}
           >
-            ×
           </button>
           <button
             className="action-button up"

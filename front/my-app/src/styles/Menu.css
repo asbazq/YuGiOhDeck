@@ -57,7 +57,7 @@
   position: absolute;
   top: 20px;
   left: 20px;
-  z-index: 6;
+  z-index: 4;
 
   /* 버튼 크기 고정 */
   width: 30px;
