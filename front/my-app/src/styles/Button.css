@@ -1,0 +1,70 @@
+.action-button,
+button#resetButton{
+    display:inline-block;
+    padding:8px 16px;
+    background:#3a5cda;
+    color:#fff;
+    border:4px solid #000;
+    font-family: 'NeoDunggeunmo', sans-serif;
+    font-size: 15px;
+    box-shadow:
+               inset -4px -4px 0 #2742a0,
+               4px 4px 0 #000;
+    text-shadow:1px 1px 0 #000;
+    cursor:pointer;
+    transition:transform .05s;
+}
+
+#resetButton,
+#effectButton{
+    min-width:80px;
+    min-height:40px;
+}
+
+#effectButton.on{
+    background:#3a5cda;                    
+    box-shadow:inset -4px -4px 0 #2742a0,
+               4px 4px 0 #000;
+    color:#fff;
+}
+#effectButton.off{
+    background:#ff5555;                     
+    box-shadow:inset -4px -4px 0 #b33838,
+               4px 4px 0 #000;
+    color:#fff;
+}
+
+/* Hover·Active 감촉 */
+#effectButton.on:hover{ background:#2d4373; }
+#effectButton.off:hover{ background:#d24545; }
+
+#effectButton.on:active,
+#effectButton.off:active{
+    transform:translateY(2px);
+    box-shadow:inset 4px 4px 0 rgba(0,0,0,.25),
+               inset -4px -4px 0 rgba(0,0,0,.25),
+               2px 2px 0 #000;
+}
+
+#resetButton:hover{ background:#2d4373; }
+#resetButton:active{
+    transform:translateY(2px);
+    box-shadow:inset 4px 4px 0 rgba(0,0,0,.25),
+               inset -4px -4px 0 rgba(0,0,0,.25),
+               2px 2px 0 #000;
+}
+
+/* 위치 고정 */
+#effectButton{
+    position:fixed;
+    bottom:20px;
+    right:120px;
+    z-index:4;
+}
+button#resetButton{
+    position:fixed;
+    bottom:20px;
+    right:20px;
+    z-index:4;
+}
+

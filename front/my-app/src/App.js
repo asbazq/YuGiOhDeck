@@ -1,5 +1,12 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './styles/App.css';
+import './styles/DeckCard.css';
+import './styles/SearchBar.css';
+import './styles/SearchResultItem.css';
+import './styles/Message.css'
+import './styles/LimitBoard.css'
+import './styles/Menu.css'
+import './styles/Button.css'
 
 import pako from 'pako';
 import SearchBar from './components/SearchBar';
@@ -8,11 +15,8 @@ import DeckCard from './components/DeckCard';
 import LimitBoard from './components/LimitBoard';
 import Card from './classes/Card';
 import { sortCards, saveUrl } from './common/deckUtils';
-import './styles/DeckCard.css';
-import './styles/SearchBar.css';
-import './styles/SearchResultItem.css';
-import './styles/Message.css'
 import alertCard from './img/black-magician-girl-card-8bit.png';
+
 
 
 
@@ -36,7 +40,7 @@ function App() {
  useEffect(() => {
     if (typeof window.ChannelIO === 'function') {
       window.ChannelIO('boot', {
-        pluginKey: 'plugin_key'
+        pluginKey: 'c04dce9d-99b7-47bb-9f9a-470519116888'
       });
     }
   }, []);
@@ -60,10 +64,17 @@ function App() {
 
    useEffect(() => {
     if (activeBoard === 'limit' && limitCards.length === 0) {
+      setMessage('로딩중...');
       fetch('/cards/limit')
         .then(res => res.json())
-        .then(data => setLimitCards(data))
-        .catch(err => console.error('limit fetch error', err));
+        .then(data => {
+          setLimitCards(data);
+          setMessage('');
+        })
+        .catch(err => {
+          console.error('limit fetch error', err);
+          showMessage('불러오기 실패');
+        });
     }
   }, [activeBoard, limitCards.length]);
   
@@ -446,12 +457,30 @@ function App() {
     };
   }, []);
 
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
     <>
-    <div className="board-switch">
-      <button className="action-button" onClick={() => setActiveBoard('limit')}>리미트 레귤레이션</button>
-      <button className="action-button" onClick={() => setActiveBoard('deck')}>덱 빌딩</button>
+    <button
+      className="menu-button"
+      onClick={() => setIsMenuOpen(true)}
+      aria-label="메뉴 열기"
+    >
+      <span></span>
+      <span></span>
+      <span></span>
+    </button>
+    <div className={`menu-overlay ${isMenuOpen ? 'open' : ''}`} onClick={() => setIsMenuOpen(false)}></div>
+    <div className={`side-menu ${isMenuOpen ? 'open' : ''}`}>
+      <div className="board-switch">
+        <button onClick={() => { setActiveBoard('limit'); setIsMenuOpen(false); }}>리미트 레귤레이션</button>
+        <button onClick={() => { setActiveBoard('deck'); setIsMenuOpen(false); }}>덱 빌딩</button>
+      </div>
     </div>
+            <div id="msgWrap" style={{ display: message ? 'flex' : 'none' }}>
+          <div id="msgBubble">{message}</div>
+          <img src={alertCard} alt="alert" className="msgImg" />
+        </div>
     {activeBoard === 'deck' && (
     <div className="container">
       <div className="contact-info">
@@ -498,13 +527,9 @@ function App() {
             Card illustration © Kazuki Takahashi / Konami Digital Entertainment Co., Ltd. All rights reserved.
           </small>
         </footer>
-        <div id="msgWrap" style={{ display: message ? 'flex' : 'none' }}>
-          <div id="msgBubble">{message}</div>
-          <img src={alertCard} alt="alert" className="msgImg" />
-        </div>
         <div id="title">YuGiOh Deck</div>
-        <div className="description">이 웹사이트는 YuGiOh 덱 빌더입니다. 원하는 카드를 추가하고 덱을 구성해보세요!</div>
-        <div className="contact-info">오류 문의 : wjdgns5488@naver.com</div>
+        <div className="description">↑↑↓↓←→←→BA</div>
+        <div className="contact-info">오류 문의 : 아래 채널톡</div>
         <div id="mainDeckLabel">메인 덱 <span>{mainDeck.length}</span></div>
         <div className="cards" id="cardsContainer">
           {mainDeck.map((card, index) => (

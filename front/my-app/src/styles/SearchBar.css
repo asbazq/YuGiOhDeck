@@ -77,3 +77,13 @@
 .search-container input:focus {
     border-color: #14bcff;
 }
+
+input{
+    width:100%;
+    padding:6px 10px;
+    background:#cfd2ff;
+    border:4px solid #000;
+    box-shadow:inset 4px 4px 0 #7d7d7d;
+    font-size:10px;
+    color:#000;
+}
