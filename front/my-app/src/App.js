@@ -161,7 +161,7 @@ function App() {
 
   const showMessage = (msg) => {
     setMessage(msg);
-    setTimeout(() => setMessage(''), 3000);
+    setTimeout(() => setMessage(''), 2300);
   };
 
   const addCardToDeck = async (imageUrl, frameType, name) => {
@@ -366,53 +366,40 @@ function App() {
     }
   };
 
-  useEffect(() => {
-    const expandedOverlay = document.querySelector('.expanded-overlay');
+  const handleOverlayClick = () => {
+    if (isAnimatingRef.current || expandedIndexRef.current === null) return;
+    const card = cardRefs.current[expandedIndexRef.current];
+    if (!card) return;
+  if (expandedOverlayRef.current) {
+    expandedOverlayRef.current.style.display = 'none';
+  }
 
-    const handleOverlayClick = () => {
-      if (isAnimatingRef.current || expandedIndexRef.current === null) return;
-      const card = cardRefs.current[expandedIndexRef.current];
-      if (!card) return;
+ const origTop = parseFloat(card.dataset.origTop || 0);
+    const origLeft = parseFloat(card.dataset.origLeft || 0);
+    const origScrollY = parseFloat(card.dataset.origScrollY || 0);
+    const finalTop = origTop + (origScrollY - window.scrollY);
 
-      expandedOverlay.style.display = 'none';
+    isAnimatingRef.current = true;
+    card.classList.remove('expanded');
+    card.style.zIndex = '10';
+    card.style.top = finalTop + 'px';
+    card.style.left = origLeft + 'px';
+    card.style.transform = 'translate(0, 0) scale(1)';
 
-      const origTop = parseFloat(card.dataset.origTop || 0);
-      const origLeft = parseFloat(card.dataset.origLeft || 0);
-      const origScrollY = parseFloat(card.dataset.origScrollY || 0);
-      const finalTop = origTop + (origScrollY - window.scrollY);
-
-      isAnimatingRef.current = true;
-      card.classList.remove('expanded');
-      card.style.zIndex = '10';
-      card.style.top = finalTop + 'px';
-      card.style.left = origLeft + 'px';
-      card.style.transform = 'translate(0, 0) scale(1)';
-
-      card.addEventListener('transitionend', function handler() {
-        card.style.position = 'relative';
-        card.style.top = '';
-        card.style.left = '';
-        card.style.transform = '';
-        card.style.zIndex = '';
-        expandedIndexRef.current = null;
-        setExpandedIndex(null);
-        setIsExpanded(false);
-        setCardDetail(null);
-        isAnimatingRef.current = false;
-        card.removeEventListener('transitionend', handler);
-      });
-    };
-
-    if (expandedOverlay) {
-      expandedOverlay.addEventListener('click', handleOverlayClick);
-    }
-
-    return () => {
-      if (expandedOverlay) {
-        expandedOverlay.removeEventListener('click', handleOverlayClick);
-      }
-    };
-  }, []);
+    card.addEventListener('transitionend', function handler() {
+      card.style.position = 'relative';
+      card.style.top = '';
+      card.style.left = '';
+      card.style.transform = '';
+      card.style.zIndex = '';
+      expandedIndexRef.current = null;
+      setExpandedIndex(null);
+      setIsExpanded(false);
+      setCardDetail(null);
+      isAnimatingRef.current = false;
+      card.removeEventListener('transitionend', handler);
+    });
+  };
 
   useEffect(() => {
     let scrollTimeout;
@@ -519,7 +506,11 @@ function App() {
       >
         {effectsEnabled ? '이펙트' : '이펙트'}
       </button>
-    <div ref={expandedOverlayRef} className="expanded-overlay"></div>
+     <div
+      ref={expandedOverlayRef}
+      className="expanded-overlay"
+      onClick={handleOverlayClick}
+    ></div>
       {isExpanded && cardDetail && (
         <div className="card-detail-container" style={{ display: 'block' }}>
           <div id="cardDetailContainer">{cardDetail.name}</div>
