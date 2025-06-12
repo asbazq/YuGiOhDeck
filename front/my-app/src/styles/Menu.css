@@ -18,12 +18,6 @@
   border-bottom: none;
 }
 
-.menu-button {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 6;
-}
 
 .side-menu {
   position: fixed;
@@ -60,14 +54,14 @@
 
 /* 메뉴 버튼 (햄버거 아이콘) */
 .menu-button {
-  position: fixed;
+  position: absolute;
   top: 20px;
   left: 20px;
   z-index: 6;
 
   /* 버튼 크기 고정 */
-  width: 32px;
-  height: 24px;
+  width: 30px;
+  height: 20px;
   padding: 0;
   background: transparent;
   border: none;
@@ -79,8 +73,8 @@
   position: absolute;
   left: 0;
   right: 0;
-  height: 2px;
-  background-color: #000;
+  height: 3px;
+  background-color: #c9c7c7;
 }
 
 /* 첫 번째 줄: 맨 위 */
