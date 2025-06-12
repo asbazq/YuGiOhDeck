@@ -65,3 +65,12 @@
   height: auto;
   margin-left: 20px;
 }
+
+.msgImg.konami {
+  width: 300px;
+  cursor: pointer;
+}
+
+#msgBubble.konami {
+  cursor: pointer;
+}

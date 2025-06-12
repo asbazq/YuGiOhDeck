@@ -12,6 +12,7 @@ function LimitBoard({ cards, showMessage = () => {} }) {
   const [activeTab, setActiveTab] = useState('forbidden');
   const [showKonami, setShowKonami] = useState(false);
   const [message, setMessage] = useState('');
+  const [padHidden, setPadHidden] = useState(true);
   const filtered = cards.filter(card => card.restrictionType === activeTab);
   const konami = [
     'ArrowUp',
@@ -74,33 +75,47 @@ function LimitBoard({ cards, showMessage = () => {} }) {
           <LimitCard key={`${card.imageUrl}-${index}`} card={card} />
         ))}
       </div>
-       {/* keypad control placeholder */}
-      <div id="directionPad">
+       {padHidden ? (
         <button
-          className="action-button up"
-          onClick={() => handleInput('ArrowUp')}
+          id="showPadButton"
+          className="action-button"
+          onClick={() => setPadHidden(false)}
         >
-          ↑
         </button>
-        <button
-          className="action-button left"
-          onClick={() => handleInput('ArrowLeft')}
-        >
-          ←
-        </button>
-        <button
-          className="action-button right"
-          onClick={() => handleInput('ArrowRight')}
-        >
-          →
-        </button>
-        <button
-          className="action-button down"
-          onClick={() => handleInput('ArrowDown')}
-        >
-          ↓
-        </button>
-      </div>
+          ) : (
+        <div id="directionPad">
+          <button
+            className="hide-button action-button"
+            onClick={() => setPadHidden(true)}
+          >
+            ×
+          </button>
+          <button
+            className="action-button up"
+            onClick={() => handleInput('ArrowUp')}
+          >
+            ↑
+          </button>
+          <button
+            className="action-button left"
+            onClick={() => handleInput('ArrowLeft')}
+          >
+            ←
+          </button>
+          <button
+            className="action-button right"
+            onClick={() => handleInput('ArrowRight')}
+          >
+            →
+          </button>
+          <button
+            className="action-button down"
+            onClick={() => handleInput('ArrowDown')}
+          >
+            ↓
+          </button>
+        </div>
+      )}
     </>
   );
 }

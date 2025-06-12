@@ -16,6 +16,7 @@ import LimitBoard from './components/LimitBoard';
 import Card from './classes/Card';
 import { sortCards, saveUrl } from './common/deckUtils';
 import alertCard from './img/black-magician-girl-card-8bit.png';
+import konamiGif from './img/1749718043.gif';
 
 
 
@@ -477,10 +478,27 @@ function App() {
         <button onClick={() => { setActiveBoard('deck'); setIsMenuOpen(false); }}>덱 빌딩</button>
       </div>
     </div>
-        <div id="msgWrap" style={{ display: message ? 'flex' : 'none' }}>
-          <div id="msgBubble">{message}</div>
-          <img src={alertCard} alt="alert" className="msgImg" />
+      <div
+        id="msgWrap"
+        style={{ display: message ? 'flex' : 'none' }}
+        onClick={() => {
+          if (message === 'Konami code!') {
+            window.open(
+              'https://gall.dcinside.com/mgallery/board/view/?id=pixelart&no=23715',
+              '_blank'
+            );
+          }
+        }}
+      >
+        <div id="msgBubble" className={message === 'Konami code!' ? 'konami' : ''}>
+          {message}
         </div>
+        <img
+          src={message === 'Konami code!' ? konamiGif : alertCard}
+          alt="alert"
+          className={`msgImg${message === 'Konami code!' ? ' konami' : ''}`}
+        />
+      </div>
     {activeBoard === 'deck' && (
     <div className="container">
       <div className="contact-info">
