@@ -1,5 +1,7 @@
 package com.card.Yugioh.controller;
 
+import java.util.List;
+
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Controller;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.ResponseBody;
 
 import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
+import com.card.Yugioh.dto.LimitRegulationDto;
 import com.card.Yugioh.service.CardService;
 
 import lombok.RequiredArgsConstructor;
@@ -32,5 +35,11 @@ public class CardController {
     @ResponseBody
     public CardInfoDto getCardInfo(@RequestParam String cardName) {
         return cardService.getCardInfo(cardName);
+    }
+    
+    @GetMapping("/limit")
+    @ResponseBody
+    public List<LimitRegulationDto> getLimitRegulations() {
+        return cardService.getLimitRegulations();
     }
 }

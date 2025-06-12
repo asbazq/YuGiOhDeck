@@ -181,3 +181,11 @@ input{
   background: rgba(255,255,255,0.8);
   font-family: 'Press Start 2P', monospace;
 }
+
+.board-switch {
+  text-align: center;
+  margin: 10px 0;
+}
+.board-switch .action-button {
+  margin: 0 4px;
+}

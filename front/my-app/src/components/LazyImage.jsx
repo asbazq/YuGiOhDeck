@@ -11,7 +11,12 @@ function LazyImage({ src, alt, className, style }) {
     img.onload = () => setImgSrc(src);
   }, [src]);
 
-  return <img src={imgSrc} alt={alt} className={className} style={style} />;
+  return <img 
+            src={imgSrc} 
+            alt={alt} 
+            className={className} 
+            style={style} 
+          />;
 }
 
 export default LazyImage;

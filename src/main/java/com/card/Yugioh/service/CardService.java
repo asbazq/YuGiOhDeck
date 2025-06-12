@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
+import com.card.Yugioh.dto.LimitRegulationDto;
 import com.card.Yugioh.model.CardImage;
 import com.card.Yugioh.model.CardModel;
 import com.card.Yugioh.model.LimitRegulation;
@@ -33,14 +34,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.LocalDateTime;
 
 @Slf4j
 @Service
@@ -339,5 +338,25 @@ public class CardService {
             log.error("리스트 " + listId + " 데이터를 가져오는 중 오류가 발생했습니다.", e);
             e.printStackTrace();
         }
+    }
+
+
+    @Transactional(readOnly = true)
+    public List<LimitRegulationDto> getLimitRegulations() {
+        List<LimitRegulation> limits = limitRegulationRepository.findAll();
+        return limits.stream().map(limit -> {
+            CardModel model = cardRepository.findByKorName(limit.getCardName())
+                                          .orElseGet(() -> cardRepository.findByName(limit.getCardName()));
+            String name = limit.getCardName();
+            String imageUrl = "";
+            if (model != null) {
+                name = model.getKorName() != null ? model.getKorName() : model.getName();
+                List<CardImage> images = cardImgRepository.findByCardModel(model);
+                if (!images.isEmpty()) {
+                    imageUrl = images.get(0).getImageUrlSmall();
+                }
+            }
+            return new LimitRegulationDto(name, imageUrl, limit.getRestrictionType());
+        }).toList();
     }
 }

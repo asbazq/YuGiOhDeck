@@ -2,18 +2,17 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import './styles/App.css';
 
 import pako from 'pako';
-import LazyImage from './components/LazyImage';
-import LazyBackground from './components/LazyBackground';
 import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
 import DeckCard from './components/DeckCard';
+import LimitBoard from './components/LimitBoard';
 import Card from './classes/Card';
 import { sortCards, saveUrl } from './common/deckUtils';
 import './styles/DeckCard.css';
 import './styles/SearchBar.css';
 import './styles/SearchResultItem.css';
 import './styles/Message.css'
-import alertCard from './img/black-magician-girl-8bit.png';
+import alertCard from './img/black-magician-girl-card-8bit.png';
 
 
 
@@ -31,7 +30,18 @@ function App() {
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [effectsEnabled, setEffectsEnabled] = useState(true);
+  const [activeBoard, setActiveBoard] = useState('deck');
+  const [limitCards, setLimitCards] = useState([]);
   
+ useEffect(() => {
+    if (typeof window.ChannelIO === 'function') {
+      window.ChannelIO('boot', {
+        pluginKey: 'plugin_key'
+      });
+    }
+  }, []);
+
+
    useEffect(() => {
     const script = document.createElement("script");
     script.async = true;
@@ -47,6 +57,15 @@ function App() {
     `;
     document.head.appendChild(inlineScript);
   }, []);
+
+   useEffect(() => {
+    if (activeBoard === 'limit' && limitCards.length === 0) {
+      fetch('/cards/limit')
+        .then(res => res.json())
+        .then(data => setLimitCards(data))
+        .catch(err => console.error('limit fetch error', err));
+    }
+  }, [activeBoard, limitCards.length]);
   
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
@@ -428,12 +447,20 @@ function App() {
   }, []);
 
   return (
+    <>
+    <div className="board-switch">
+      <button className="action-button" onClick={() => setActiveBoard('limit')}>리미트 레귤레이션</button>
+      <button className="action-button" onClick={() => setActiveBoard('deck')}>덱 빌딩</button>
+    </div>
+    {activeBoard === 'deck' && (
     <div className="container">
-      <button 
-        id="resetButton" 
-        className="action-button" 
-        onClick={() => { 
-          setMainDeck([]); setExtraDeck([]); saveUrl([], []); window.history.pushState({}, '', '/'); 
+      <div className="contact-info">
+      </div>
+      <button
+        id="resetButton"
+        className="action-button"
+        onClick={() => {
+          setMainDeck([]); setExtraDeck([]); saveUrl([], []); window.history.pushState({}, '', '/');
           }}
       >
         초기화
@@ -519,7 +546,6 @@ function App() {
           ))}
         </div>
       </div>
-  
       <div className="right-container">
         <SearchBar
           searchKeyword={searchKeyword}
@@ -533,7 +559,14 @@ function App() {
         <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
       </div>
     </div>
-  );  
+   )}
+    {activeBoard === 'limit' && (
+      <div className="container">
+        <LimitBoard cards={limitCards} />
+      </div>
+    )}
+    </>
+  );
 }
 
 export default App;
