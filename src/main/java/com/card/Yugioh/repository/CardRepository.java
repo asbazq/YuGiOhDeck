@@ -22,16 +22,18 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
 // FROM CardModel c 
 // WHERE LOWER(REPLACE(c.korName, ' ', '')) LIKE LOWER(REPLACE(CONCAT('%', :query, '%'), ' ', '')) 
 // OR LOWER(REPLACE(c.name, ' ', '')) LIKE LOWER(REPLACE(CONCAT('%', :query, '%'), ' ', ''))"
-   @Query("""
-       SELECT c
-       FROM   CardModel c
-       WHERE  (:frameType = '' OR c.frameType = :frameType)
-          AND (LOWER(REPLACE(c.korName, ' ', '')) LIKE LOWER(REPLACE(CONCAT('%', :query, '%'), ' ', '')) 
-           OR  LOWER(REPLACE(c.name, ' ', '')) LIKE LOWER(REPLACE(CONCAT('%', :query, '%'), ' ', '')))
-       """)
-   Page<CardModel> searchByNameContaining(@Param("query") String query,
-                                          @Param("frameType") String frameType,
-                                          Pageable pageable);
+    @Query(value = """
+            SELECT *
+            FROM card_model
+            WHERE
+            (:frameType = '' OR frame_type = :frameType)
+            AND MATCH(name_normalized, kor_name_normalized)
+                AGAINST(:query IN BOOLEAN MODE)
+            """,
+            nativeQuery = true)
+    Page<CardModel> searchByFullText(@Param("query") String query,
+                                        @Param("frameType") String frameType,
+                                        Pageable pageable);
    CardModel findByName(String name);
    Optional<CardModel> findByKorName(String korName);
    

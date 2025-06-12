@@ -477,7 +477,7 @@ function App() {
         <button onClick={() => { setActiveBoard('deck'); setIsMenuOpen(false); }}>덱 빌딩</button>
       </div>
     </div>
-            <div id="msgWrap" style={{ display: message ? 'flex' : 'none' }}>
+        <div id="msgWrap" style={{ display: message ? 'flex' : 'none' }}>
           <div id="msgBubble">{message}</div>
           <img src={alertCard} alt="alert" className="msgImg" />
         </div>
@@ -587,7 +587,7 @@ function App() {
    )}
     {activeBoard === 'limit' && (
       <div className="container">
-        <LimitBoard cards={limitCards} />
+       <LimitBoard cards={limitCards} showMessage={showMessage} />
       </div>
     )}
     </>

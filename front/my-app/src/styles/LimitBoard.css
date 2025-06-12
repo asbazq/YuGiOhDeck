@@ -2,7 +2,7 @@
   position: fixed;
   text-align: center;
   margin-bottom: 10px;
-  top: 0;
+  top: 45px;
   left: 0;
   right: 0;
   z-index: 1;
@@ -10,6 +10,8 @@
 .limit-tabs .action-button {
   margin: 0 4px;
   border-radius: 45%;
+  width: 50px;
+  height: 50px;
 }
 .limit-tabs .action-button.on {
   background: #3a5cda;
@@ -37,7 +39,58 @@
              2px 2px 0 #000;
 }
 
-/* offset limit board to avoid overlap with sticky tabs */
 #limitBoard {
-  margin-top: 100px;
+  margin-top: 200px;
+}
+
+#directionPad {
+    position: fixed;
+    top: 20px;
+    left: 700px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    gap: 2px;
+    width: 120px;
+    height: 120px;
+    z-index: 4;
+}
+
+#directionPad .action-button {
+    min-width: 0;
+    min-height: 0;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    line-height: 1;
+    border-radius: 45%;
+}
+
+#directionPad .action-button:hover {
+    background:#2d4373;
+}
+
+#directionPad .action-button:active {
+    transform:translateY(2px);
+    box-shadow:inset 4px 4px 0 rgba(0,0,0,.25),
+               inset -4px -4px 0 rgba(0,0,0,.25),
+               2px 2px 0 #000;
+}
+
+#directionPad .up { grid-area: 1 / 2; }
+#directionPad .left { grid-area: 2 / 1; }
+#directionPad .right { grid-area: 2 / 3; }
+#directionPad .down { grid-area: 3 / 2; }
+
+.konami-message {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 10px 20px;
+  background: #fff;
+  border: 4px solid #000;
+  box-shadow: 8px 8px 0 #575754;
+  font-family: 'NeoDunggeunmo', sans-serif;
+  z-index: 10;
 }
