@@ -36,7 +36,7 @@ function LimitBoard({ showMessage = () => {} }) {
     setIsLoading(true);
     try {
       setMessage('로딩중...');
-      const res = await fetch(`/cards/limit?type=${type}&page=${page}&size=20`);
+      const res = await fetch(`/cards/limit?type=${type}&page=${page}&size=10`);
       const data = await res.json();
       setCardsByType(prev => ({
         ...prev,
@@ -63,9 +63,10 @@ function LimitBoard({ showMessage = () => {} }) {
     const handleScroll = () => {
       if ( window.innerHeight + window.scrollY >=
           document.documentElement.scrollHeight - 5 &&
-        hasMoreByType[activeTab] &&
-        !isLoading) {
-        fetchCards(activeTab, pageByType[activeTab] + 1);
+         !isLoading
+      ) {
+        const nextPage = pageByType[activeTab] + 1;
+        fetchCards(activeTab, nextPage);
       }
     };
     window.addEventListener('scroll', handleScroll);
@@ -108,6 +109,7 @@ function LimitBoard({ showMessage = () => {} }) {
 
   return (
       <div className="limit-container">
+        <div className="limit-main">
         <div className="limit-tabs">
           <div id="msgWrap" style={{ display: message ? 'flex' : 'none' }}>
             <div id="msgBubble">{message}</div>
@@ -173,6 +175,7 @@ function LimitBoard({ showMessage = () => {} }) {
             </button>
           </div>
         )}
+        </div>
     </div>
   );
 }

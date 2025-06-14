@@ -71,7 +71,7 @@
     width: 1.3em;
     height: 1.3em;
     background-color: #000;
-    border: 2px solid #f00;
+    border: 4px solid #f00;
     color: #ff0;
     font-size: 1em;
     font-weight: bold;
@@ -92,7 +92,7 @@
     content: "";
     position: absolute;
     width: 0.2em;
-    height: 1.8em;
+    height: 1.5em;
     background: #f00;
     top: 50%;
     left: 50%;
@@ -104,8 +104,13 @@
     display: none;
 }
 
+.cards{
+    display:flex;
+    flex-wrap:wrap;
+    gap:8px;
+    justify-content:center;
+}
 
-.cards{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;}
 .card-thumb{
     width:60px;height:88px;
     border:4px solid #000;
