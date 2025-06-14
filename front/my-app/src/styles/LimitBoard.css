@@ -41,6 +41,26 @@
 
 #limitBoard {
   margin-top: 200px;
+  min-height: 100vh;
+}
+
+.limit-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+#limitBoard .search-result-item {
+  width: 98px;
+}
+
+#limitBoard .search-result-item p {
+  font-size: 0.62em;
+}
+
+#limitBoard .search-result-item .restriction-label {
+  font-size: 0.62em;
 }
 
 #directionPad {
@@ -97,10 +117,18 @@
                2px 2px 0 #000;
 }
 
-#directionPad .up { grid-area: 1 / 2; }
-#directionPad .left { grid-area: 2 / 1; }
-#directionPad .right { grid-area: 2 / 3; }
-#directionPad .down { grid-area: 3 / 2; }
+#directionPad .up {
+  grid-area: 1 / 2;
+}
+#directionPad .left {
+  grid-area: 2 / 1;
+}
+#directionPad .right {
+  grid-area: 2 / 3;
+}
+#directionPad .down {
+  grid-area: 3 / 2;
+}
 
 .konami-message {
   position: fixed;

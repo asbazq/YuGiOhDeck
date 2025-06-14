@@ -36,7 +36,6 @@ function App() {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   const [activeBoard, setActiveBoard] = useState('deck');
-  const [limitCards, setLimitCards] = useState([]);
   
  useEffect(() => {
     if (typeof window.ChannelIO === 'function') {
@@ -63,22 +62,6 @@ function App() {
     document.head.appendChild(inlineScript);
   }, []);
 
-   useEffect(() => {
-    if (activeBoard === 'limit' && limitCards.length === 0) {
-      setMessage('로딩중...');
-      fetch('/cards/limit')
-        .then(res => res.json())
-        .then(data => {
-          setLimitCards(data);
-          setMessage('');
-        })
-        .catch(err => {
-          console.error('limit fetch error', err);
-          showMessage('불러오기 실패');
-        });
-    }
-  }, [activeBoard, limitCards.length]);
-  
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
   const expandedOverlayRef = useRef(null);
@@ -596,7 +579,7 @@ function App() {
    )}
     {activeBoard === 'limit' && (
       <div className="container">
-       <LimitBoard cards={limitCards} showMessage={showMessage} />
+       <LimitBoard showMessage={showMessage} />
       </div>
     )}
     </>

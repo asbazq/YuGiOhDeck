@@ -20,19 +20,25 @@ public class QueueAdminController {
     @GetMapping("/{qid}")
     public QueueConfig getConfig(@PathVariable String qid) {
         Map<Object,Object> m = redis.opsForHash().entries("config:" + qid);
+        Map<Object,Object> g = redis.opsForHash().entries("config:global");
+        m.putAll(g);
         return QueueConfig.from(m);
     }
 
-    /** throughput, sessionTtlMillis 동시 갱신 */
+     /** throughput, sessionTtlMillis, maxRunning 동시 갱신 */
     @PostMapping("/{qid}")
     public void updateConfig(@PathVariable String qid,
                              @RequestParam(required = false) Integer throughput,
-                             @RequestParam(required = false) Long sessionTtlMillis) {
+                             @RequestParam(required = false) Long sessionTtlMillis,
+                             @RequestParam(required = false) Integer maxRunning) {
         if (throughput != null) {
             redis.opsForHash().put("config:" + qid, "throughput", throughput.toString());
         }
         if (sessionTtlMillis != null) {
             redis.opsForHash().put("config:" + qid, "sessionTtlMillis", sessionTtlMillis.toString());
+        }
+        if (maxRunning != null) {
+            redis.opsForHash().put("config:global", "maxRunning", maxRunning.toString());
         }
     }
 }

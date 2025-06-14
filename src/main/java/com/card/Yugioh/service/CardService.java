@@ -342,9 +342,14 @@ public class CardService {
 
 
     @Transactional(readOnly = true)
-    public List<LimitRegulationDto> getLimitRegulations() {
-        List<LimitRegulation> limits = limitRegulationRepository.findAll();
-        return limits.stream().map(limit -> {
+    public Page<LimitRegulationDto> getLimitRegulations(String type, Pageable pageable) {
+        Page<LimitRegulation> limits;
+        if (type != null && !type.isEmpty()) {
+            limits = limitRegulationRepository.findByRestrictionType(type.toLowerCase(), pageable);
+        } else {
+            limits = limitRegulationRepository.findAll(pageable);
+        }
+        return limits.map(limit -> {
             CardModel model = cardRepository.findByKorName(limit.getCardName())
                                           .orElseGet(() -> cardRepository.findByName(limit.getCardName()));
             String name = limit.getCardName();
@@ -357,6 +362,6 @@ public class CardService {
                 }
             }
             return new LimitRegulationDto(name, imageUrl, limit.getRestrictionType());
-        }).toList();
+        });
     }
 }

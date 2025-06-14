@@ -4,6 +4,7 @@ import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -39,7 +40,9 @@ public class CardController {
     
     @GetMapping("/limit")
     @ResponseBody
-    public List<LimitRegulationDto> getLimitRegulations() {
-        return cardService.getLimitRegulations();
+    public Page<LimitRegulationDto> getLimitRegulations(
+            @RequestParam(required = false) String type,
+            Pageable pageable) {
+        return cardService.getLimitRegulations(type, pageable);
     }
 }

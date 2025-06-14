@@ -1,5 +1,6 @@
 package com.card.Yugioh.service;
 
+import com.card.Yugioh.security.QueueConfig;
 import com.card.Yugioh.security.UserDisconnectedEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -22,7 +23,6 @@ public class QueueService {
 
     private static final String RUNNING_PREFIX = "running:";
     private static final String WAITING_PREFIX = "waiting:";
-    private static final int    MAX_runnging = 2;
 
     private final ObjectMapper om = new ObjectMapper();
 
@@ -40,7 +40,7 @@ public class QueueService {
         if (redis.opsForZSet().score(runKey, user) != null)
             return entered();
 
-        if (totalRunningSize() < MAX_runnging) {
+        if (totalRunningSize() < maxRunning()) {
             redis.opsForZSet().add(runKey, user, Instant.now().toEpochMilli());
             broadcastStatus(qid);
             if (qid.equals("vip")) broadcastStatus("main");
@@ -104,13 +104,18 @@ public class QueueService {
         return Map.of("pos", pos);
     }
 
+    private int maxRunning() {
+        Map<Object,Object> m = redis.opsForHash().entries("config:global");
+        return QueueConfig.from(m).maxRunning();
+    }
+
 
     /* ===================== 내부 로직 ==================== */
     private void promoteNextUser(String qid) {
         String runKey  = RUNNING_PREFIX + qid;
         String vipKey  = WAITING_PREFIX + "vip";
         String mainKey = WAITING_PREFIX + "main";
-        if (totalRunningSize() >= MAX_runnging) return;
+        if (totalRunningSize() >= maxRunning()) return;
 
         // 1) VIP 대기자 우선 승격
         Set<String> vipBatch = redis.opsForZSet().range(vipKey, 0, 0);

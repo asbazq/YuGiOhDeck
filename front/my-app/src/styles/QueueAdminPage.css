@@ -1,0 +1,107 @@
+/* ─── 페이지 래퍼 ─── */
+.pixel-admin-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;      /* 화면 높이만큼 */
+  background: #dcdcdc;
+}
+
+.pixel-admin {
+  font-family: 'NeoDunggeunmo', sans-serif;
+  background: #fff;
+  padding: 24px;
+  max-width: 400px;
+  width: 100%;
+  border: 4px solid #000;
+  box-shadow:
+    inset 4px 4px 0 #7d7d7d,
+    inset -4px -4px 0 #7d7d7d,
+    8px 8px 0 #000;
+  box-sizing: border-box;
+}
+
+/* ─── 제목 ─── */
+.pixel-admin h1 {
+  font-size: 30px;
+  text-shadow:1px 1px 0 #000;
+  margin-bottom: 16px;
+}
+
+/* ─── 라벨+인풋 그룹 ─── */
+.pixel-admin .row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.pixel-admin label {
+  font-size: 20px;
+  margin-right: 8px;
+}
+
+.pixel-admin .row label {
+  display: flex;
+  align-items: center;
+  flex: 1;
+}
+
+.pixel-admin .pixel-input {
+  width: 120px;
+  padding: 8px;
+  background: #ffffff;
+  border: 4px solid #000;
+  box-shadow:
+    inset 4px 4px 0 #7d7d7d,
+    inset -4px -4px 0 #7d7d7d,
+    4px 4px 0 #000;
+  font-family: inherit;
+  font-size: 20px;
+  color: #000;
+  outline: none;
+  image-rendering: pixelated;
+  margin-left: auto;
+}
+
+/* ─── 버튼 ─── */
+.pixel-admin .pixel-btn {
+  padding: 8px 16px;
+  margin-right: 8px;
+  background: #3a5cda;
+  color: #fff;
+  border: 4px solid #000;
+  box-shadow:
+    inset 4px 4px 0 #2742a0,
+    inset -4px -4px 0 #2742a0,
+    4px 4px 0 #000;
+  font-family: inherit;
+  font-size: 20px;
+  cursor: pointer;
+  transition: transform .05s;
+  image-rendering: pixelated;
+}
+.pixel-admin .pixel-btn:hover {
+  background: #2d4373;
+}
+.pixel-admin .pixel-btn:active {
+  transform: translateY(2px);
+  box-shadow:
+    inset 4px 4px 0 #2742a0,
+    inset -4px -4px 0 #2742a0,
+    2px 2px 0 #000;
+}
+
+/* ─── 메시지 ─── */
+.pixel-admin .pixel-message {
+  display: inline-block;
+  margin-top: 12px;
+  background: #ffcc00;
+  color: #000;
+  border: 4px solid #000;
+  box-shadow:
+    inset 4px 4px 0 #cfa800,
+    inset -4px -4px 0 #cfa800,
+    4px 4px 0 #000;
+  padding: 8px;
+  font-size: 10px;
+  image-rendering: pixelated;
+}
