@@ -27,16 +27,18 @@ function LimitBoard({ showMessage = () => {} }) {
   });
 
   const [isLoading, setIsLoading] = useState(false);
+  const isFetchingRef = useRef(false);
   const [showKonami, setShowKonami] = useState(false);
   const [message, setMessage] = useState('');
   const [padHidden, setPadHidden] = useState(true);
   const filtered = cardsByType[activeTab];
   const fetchCards = async (type, page) => {
-    if (isLoading || !hasMoreByType[type]) return;
+    if (isFetchingRef.current || !hasMoreByType[type]) return;
+    isFetchingRef.current = true;
     setIsLoading(true);
     try {
       setMessage('로딩중...');
-      const res = await fetch(`/cards/limit?type=${type}&page=${page}&size=10`);
+      const res = await fetch(`/cards/limit?type=${type}&page=${page}&size=30`);
       const data = await res.json();
       setCardsByType(prev => ({
         ...prev,
@@ -50,6 +52,7 @@ function LimitBoard({ showMessage = () => {} }) {
       showMessage('불러오기 실패');
     } finally {
       setIsLoading(false);
+      isFetchingRef.current = false;
     }
   };
 
@@ -63,7 +66,7 @@ function LimitBoard({ showMessage = () => {} }) {
     const handleScroll = () => {
       if ( window.innerHeight + window.scrollY >=
           document.documentElement.scrollHeight - 5 &&
-         !isLoading
+         !isFetchingRef.current && !isLoading
       ) {
         const nextPage = pageByType[activeTab] + 1;
         fetchCards(activeTab, nextPage);
