@@ -59,6 +59,18 @@ public class QueueWebSocketHandler extends TextWebSocketHandler
         publisher.publishEvent(new UserDisconnectedEvent(qid, userId));
     }
 
+    /* 수신 메시지 처리 (PING → TTL 갱신) */
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) {
+        if ("PING".equalsIgnoreCase(message.getPayload())) {
+            String userId = UriComponentsBuilder.fromUri(session.getUri())
+                    .build().getQueryParams().getFirst("userId");
+            String qid = UriComponentsBuilder.fromUri(session.getUri())
+                    .build().getQueryParams().getFirst("qid");
+            publisher.publishEvent(new UserPingEvent(qid, userId));
+        }
+    }
+
     /* ============== QueueNotifier 구현 ============== */
 
     @Override

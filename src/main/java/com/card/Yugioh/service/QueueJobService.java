@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisCallback;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
@@ -59,9 +60,9 @@ public class QueueJobService {
 
             int vacancy = expired.size();
             if (vacancy > 0) {
-                var vipList = new ArrayList<>(redis.opsForZSet()
+                List<TypedTuple<String>> vipList = new ArrayList<>(redis.opsForZSet()
                         .rangeWithScores(WAITING_PREFIX + "vip", 0, vacancy - 1));
-                var mainList = new ArrayList<>(redis.opsForZSet()
+                List<TypedTuple<String>> mainList = new ArrayList<>(redis.opsForZSet()
                         .rangeWithScores(WAITING_PREFIX + "main", 0, vacancy - 1));
 
                 List<String> promoteVip = new ArrayList<>();

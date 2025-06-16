@@ -2,6 +2,7 @@ package com.card.Yugioh.service;
 
 import com.card.Yugioh.security.QueueConfig;
 import com.card.Yugioh.security.UserDisconnectedEvent;
+import com.card.Yugioh.security.UserPingEvent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
@@ -24,7 +25,7 @@ public class QueueService {
 
     private static final String RUNNING_PREFIX = "running:";
     private static final String WAITING_PREFIX = "waiting:";
-    public static final long VIP_PRIORITY_BONUS = 5_000L;
+    public static final long VIP_PRIORITY_BONUS = 5000L;
 
     private final ObjectMapper om = new ObjectMapper();
 
@@ -84,6 +85,20 @@ public class QueueService {
         // log.info("leave " + user);
     }
 
+     /* ==================== 세션 연장 ==================== */
+    public void touch(String qid, String user) {
+        String runKey = RUNNING_PREFIX + qid;
+        if (redis.opsForZSet().score(runKey, user) != null) {
+            redis.opsForZSet().add(runKey, user, Instant.now().toEpochMilli());
+        }
+    }
+
+     /* PING 이벤트 수신 시 세션 TTL 갱신 */
+    @EventListener
+    public void onUserPing(UserPingEvent ev) {
+        touch(ev.qid(), ev.userId());
+    }
+
     /* =================== WS 연결 종료 =================== */
     @EventListener
     public void onWebsocketDisconnected(UserDisconnectedEvent ev) {
@@ -129,8 +144,8 @@ public class QueueService {
         double vipScore  = vipTuple  == null ? Double.MAX_VALUE : vipTuple.getScore() - VIP_PRIORITY_BONUS;
         double mainScore = mainTuple == null ? Double.MAX_VALUE : mainTuple.getScore();
 
-        String uid;
-        boolean isVip;
+        String uid = "";
+        boolean isVip = false;
         if (vipScore <= mainScore) {
             uid = vipTuple.getValue();
             isVip = true;
