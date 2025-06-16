@@ -8,6 +8,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.event.EventListener;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -23,6 +24,7 @@ public class QueueService {
 
     private static final String RUNNING_PREFIX = "running:";
     private static final String WAITING_PREFIX = "waiting:";
+    public static final long VIP_PRIORITY_BONUS = 5_000L;
 
     private final ObjectMapper om = new ObjectMapper();
 
@@ -50,7 +52,9 @@ public class QueueService {
             // log.info("vip 입장 수 : {}", size(RUNNING_PREFIX + "vip"));
             return entered();
         }
-        redis.opsForZSet().add(waitKey, user, Instant.now().toEpochMilli());
+        long score = Instant.now().toEpochMilli();
+        if (qid.equals("vip")) score -= VIP_PRIORITY_BONUS;
+        redis.opsForZSet().add(waitKey, user, score);
         broadcastStatus(qid);
         if (qid.equals("vip")) broadcastStatus("main");
         // log.info("queue " + user);
@@ -117,23 +121,34 @@ public class QueueService {
         String mainKey = WAITING_PREFIX + "main";
         if (totalRunningSize() >= maxRunning()) return;
 
-        // 1) VIP 대기자 우선 승격
-        Set<String> vipBatch = redis.opsForZSet().range(vipKey, 0, 0);
-        if (vipBatch != null && !vipBatch.isEmpty()) {
-            String uid = vipBatch.iterator().next();
-            redis.opsForZSet().remove(vipKey, uid);
-            redis.opsForZSet().add(runKey, uid, Instant.now().toEpochMilli());
-            notifier.sendToUser(uid, "{\"type\":\"ENTER\"}");
-            return;
+        TypedTuple<String> vipTuple  = firstWithScore(vipKey);
+        TypedTuple<String> mainTuple = firstWithScore(mainKey);
+
+        if (vipTuple == null && mainTuple == null) return;
+
+        double vipScore  = vipTuple  == null ? Double.MAX_VALUE : vipTuple.getScore() - VIP_PRIORITY_BONUS;
+        double mainScore = mainTuple == null ? Double.MAX_VALUE : mainTuple.getScore();
+
+        String uid;
+        boolean isVip;
+        if (vipScore <= mainScore) {
+            uid = vipTuple.getValue();
+            isVip = true;
+        } else {
+            uid = mainTuple.getValue();
+            isVip = false;
         }
-        // 2) 일반 대기자 승격
-        Set<String> mainBatch = redis.opsForZSet().range(mainKey, 0, 0);
-        if (mainBatch != null && !mainBatch.isEmpty()) {
-            String uid = mainBatch.iterator().next();
-            redis.opsForZSet().remove(mainKey, uid);
-            redis.opsForZSet().add(runKey, uid, Instant.now().toEpochMilli());
-            notifier.sendToUser(uid, "{\"type\":\"ENTER\"}");
-        }
+
+        if (isVip) redis.opsForZSet().remove(vipKey, uid);
+        else redis.opsForZSet().remove(mainKey, uid);
+
+        redis.opsForZSet().add(runKey, uid, Instant.now().toEpochMilli());
+        notifier.sendToUser(uid, "{\"type\":\"ENTER\"}");
+    }
+
+    private TypedTuple<String> firstWithScore(String key) {
+        Set<TypedTuple<String>> set = redis.opsForZSet().rangeWithScores(key, 0, 0);
+        return (set != null && !set.isEmpty()) ? set.iterator().next() : null;
     }
 
     private void broadcastStatus(String qid) {

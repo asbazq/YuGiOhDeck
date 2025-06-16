@@ -73,7 +73,7 @@ function App() {
 
     setIsLoading(true);
     try {
-      const response = await fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&frameType=${encodeURIComponent(frame)}&page=${page}&size=24`);
+      const response = await fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&frameType=${encodeURIComponent(frame)}&page=${page}&size=25`);
       if (!response.ok) throw new Error('Network response was not ok');
       const data = await response.json();
 

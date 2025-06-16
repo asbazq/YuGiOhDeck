@@ -11,7 +11,9 @@ import com.card.Yugioh.security.QueueConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -57,41 +59,52 @@ public class QueueJobService {
 
             int vacancy = expired.size();
             if (vacancy > 0) {
-                Set<String> vipBatch = redis.opsForZSet().range(WAITING_PREFIX + "vip", 0, vacancy - 1);
-                int vipUser = (vipBatch != null) ? vipBatch.size() : 0;
+                var vipList = new ArrayList<>(redis.opsForZSet()
+                        .rangeWithScores(WAITING_PREFIX + "vip", 0, vacancy - 1));
+                var mainList = new ArrayList<>(redis.opsForZSet()
+                        .rangeWithScores(WAITING_PREFIX + "main", 0, vacancy - 1));
 
-                Set<String> normBatch = Set.of();
-                if (vipUser < vacancy) {
-                    normBatch = redis.opsForZSet()
-                        .range(WAITING_PREFIX + "main", 0, (vacancy - vipUser) - 1);
+                List<String> promoteVip = new ArrayList<>();
+                List<String> promoteMain = new ArrayList<>();
+
+                int vi = 0, mi = 0;
+                while ((promoteVip.size() + promoteMain.size()) < vacancy &&
+                       (vi < vipList.size() || mi < mainList.size())) {
+                    double vs = vi < vipList.size()
+                            ? vipList.get(vi).getScore() - QueueService.VIP_PRIORITY_BONUS
+                            : Double.MAX_VALUE;
+                    double ms = mi < mainList.size() ? mainList.get(mi).getScore() : Double.MAX_VALUE;
+
+                    if (vs <= ms) {
+                        promoteVip.add(vipList.get(vi).getValue());
+                        vi++;
+                    } else {
+                        promoteMain.add(mainList.get(mi).getValue());
+                        mi++;
+                    }
                 }
+                long now = System.currentTimeMillis();
+                redis.executePipelined((RedisCallback<Void>) conn -> {
+                    byte[] vip  = (WAITING_PREFIX + "vip").getBytes();
+                    byte[] main = (WAITING_PREFIX + "main").getBytes();
+                    byte[] run  = runKey.getBytes();
+                    for (String uid : promoteVip) {
+                        byte[] m = uid.getBytes();
+                        conn.zRem(vip, m);
+                        conn.zAdd(run, now, m);
+                    }
+                    for (String uid : promoteMain) {
+                        byte[] m = uid.getBytes();
+                        conn.zRem(main, m);
+                        conn.zAdd(run, now, m);
+                    }
+                    return null;
+                });
 
-                LinkedHashSet<String> promote = new LinkedHashSet<>();
-                if (vipBatch != null) promote.addAll(vipBatch);
-                promote.addAll(normBatch);
-
-                // Set<String> promote = redis.opsForZSet().range(waitKey, 0, vacancy - 1);
-                //  if (promote != null && !promote.isEmpty()) {
-                    long now = System.currentTimeMillis();
-                    redis.executePipelined((RedisCallback<Void>) conn -> {
-                        byte[] vip  = (WAITING_PREFIX + "vip").getBytes();
-                        byte[] wait = waitKey.getBytes();
-                        byte[] run  = runKey.getBytes();
-                        for (String uid : promote) {
-                            byte[] m = uid.getBytes();
-                            if (vipBatch != null && vipBatch.contains(uid)) {
-                                conn.zRem(vip, m);
-                            } else {
-                                conn.zRem(wait, m);
-                            }
-                            conn.zAdd(run, now, uid.getBytes());
-                            // log.info("Promote {} -> {} ({} queue)", uid, runKey, vipBatch.contains(uid)?"vip":"main");
-                        }
-                        return null;
-                    });
-                    promote.forEach(uid -> notifier.sendToUser(uid, "{\"type\":\"ENTER\"}"));
-                    broadcastStatus("vip");
-                    broadcastStatus("main");
+                promoteVip.forEach(uid -> notifier.sendToUser(uid, "{\"type\":\"ENTER\"}"));
+                promoteMain.forEach(uid -> notifier.sendToUser(uid, "{\"type\":\"ENTER\"}"));
+                broadcastStatus("vip");
+                broadcastStatus("main");
             }
         });
     }
