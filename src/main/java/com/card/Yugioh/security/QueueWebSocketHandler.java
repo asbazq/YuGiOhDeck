@@ -30,6 +30,7 @@ public class QueueWebSocketHandler extends TextWebSocketHandler
     /* 연결 */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
+        // 키는 클라이언트에서 설정되어 WebSocket URL의 query string으로 서버에 전달
         String userId = UriComponentsBuilder.fromUri(session.getUri())
                                             .build().getQueryParams()
                                             .getFirst("userId");
