@@ -64,10 +64,18 @@ public class CardService {
     public void setup() {
         // WebDriverManager를 사용하여 ChromeDriver를 자동으로 관리
         // WebDriverManager.chromedriver().setup();
-        WebDriverManager.chromedriver().browserVersion("127.0.6533.120").setup();
+        // WebDriverManager.chromedriver().browserVersion("127.0.6533.120").setup();
+        // System.setProperty("selenium.manager.disabled", "true");
+        // 컨테이너에 apk로 설치된 크로미움/크롬드라이버 경로
+        String chromeBin    = System.getenv("WEB_DRIVER_CHROME_BIN");
+        String chromeDriver = System.getenv("WEB_DRIVER_CHROME_DRIVER");
+
+        // 드라이버 시스템 프로퍼티에 경로 지정
+        System.setProperty("webdriver.chrome.driver", chromeDriver);
 
         // 브라우저를 headless 모드로 설정
         ChromeOptions options = new ChromeOptions();
+        options.setBinary(chromeBin);
         options.addArguments("--headless"); // 브라우저 창을 표시하지 않음
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");
@@ -304,8 +312,7 @@ public class CardService {
             WebElement textView = wait.until(ExpectedConditions.elementToBeClickable(By.id("textButton")));
             textView.click();
 
-             // 데이터를 가져올 시간을 확보하기 위해 잠시 대기
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("forbidden")));
+            Thread.sleep(5000);
 
             scrapeListData("forbidden");
             scrapeListData("limited");
@@ -321,25 +328,29 @@ public class CardService {
     }
 
     private void scrapeListData(String listId) {
+        // list 전체가 로드될 때까지 기다립니다.
+        WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+        wait.until(ExpectedConditions.presenceOfElementLocated(By.id(listId)));
+
         try {
-            WebElement listElement = driver.findElement(By.id(listId));
-            List<WebElement> spans = listElement.findElements(By.xpath(".//span"));
-            for (WebElement span : spans) {
-                List<WebElement> strongElements = span.findElements(By.xpath(".//span[1]/span[1]/a/strong"));
-                for (WebElement strong : strongElements) {
-                    log.info("{} 리스트 : {}", listId, strong.getText());
-                    LimitRegulation limitRegulation = new LimitRegulation();
-                    limitRegulation.setCardName(strong.getText());
-                    limitRegulation.setRestrictionType(listId);
-                    limitRegulationRepository.save(limitRegulation);
-                }
+            List<WebElement> cards = wait.until(
+            ExpectedConditions.presenceOfAllElementsLocatedBy(By.cssSelector("#" + listId + " span a strong")));
+
+            for (WebElement card : cards) {
+                String name = card.getText();
+                log.info("{} 리스트 : {}", listId, name);
+                LimitRegulation limitRegulation = new LimitRegulation();
+                limitRegulation.setCardName(name);
+                limitRegulation.setRestrictionType(listId);
+                limitRegulationRepository.save(limitRegulation);
             }
         } catch (Exception e) {
             log.error("리스트 " + listId + " 데이터를 가져오는 중 오류가 발생했습니다.", e);
             e.printStackTrace();
         }
-    }
-
+        
+        
+}
 
     @Transactional(readOnly = true)
     public Page<LimitRegulationDto> getLimitRegulations(String type, Pageable pageable) {

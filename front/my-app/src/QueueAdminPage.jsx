@@ -16,7 +16,7 @@ export default function QueueAdminPage() {
 
   const loadConfig = async () => {
     try {
-      const { data } = await axios.get(`/admin/queue/${encodeURIComponent(qid)}`);
+      const { data } = await axios.get(`/api/admin/queue/${encodeURIComponent(qid)}`);
       setThroughput(data.throughput ?? '');
       setTtl(data.sessionTtlMillis ?? '');
       setMaxRunning(data.maxRunning ?? '');
@@ -29,7 +29,7 @@ export default function QueueAdminPage() {
   const updateConfig = async () => {
     try {
       await axios.post(
-        `/admin/queue/${encodeURIComponent(qid)}`,
+        `/api/admin/queue/${encodeURIComponent(qid)}`,
         null,
         {
           params: {

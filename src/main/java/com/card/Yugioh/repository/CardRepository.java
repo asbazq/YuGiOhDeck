@@ -24,7 +24,7 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
 // OR LOWER(REPLACE(c.name, ' ', '')) LIKE LOWER(REPLACE(CONCAT('%', :query, '%'), ' ', ''))"
     @Query(value = """
             SELECT *
-            FROM card_model
+            FROM deck.card_model
             WHERE
             (:frameType = '' OR frame_type = :frameType)
             AND MATCH(name_normalized, kor_name_normalized)

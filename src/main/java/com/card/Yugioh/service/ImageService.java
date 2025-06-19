@@ -1,25 +1,5 @@
 package com.card.Yugioh.service;
 
-import org.apache.hc.client5.http.fluent.Request;
-import org.json.JSONArray;
-import org.json.JSONObject;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
-import com.card.Yugioh.model.CardImage;
-import com.card.Yugioh.model.CardModel;
-import com.card.Yugioh.repository.CardImgRepository;
-import com.card.Yugioh.repository.CardRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
-
-import jakarta.annotation.PostConstruct;
-import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
@@ -33,18 +13,40 @@ import java.util.List;
 
 import javax.imageio.ImageIO;
 
+import org.apache.hc.client5.http.fluent.Request;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RestController;
+
+import com.card.Yugioh.model.CardImage;
+import com.card.Yugioh.model.CardModel;
+import com.card.Yugioh.repository.CardImgRepository;
+import com.card.Yugioh.repository.CardRepository;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 @Slf4j
 @RequiredArgsConstructor
 @RestController
 public class ImageService {
     // sort - 카드 정렬 (atk, def, name, type, level, id, new).
     // 최신 카드 5장
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=10&offset=0&sort=name";
+    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=5&offset=0&sort=new";
     // 금지 카드 최신순
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?banlist=ocg&sort=new";
     // 모든 카드
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
-    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
+    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=100&offset=0&sort=new";
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;

@@ -40,6 +40,11 @@ public class CardModel {
     private String race;
     private String attribute;
     private String archetype;
+     // Generated Column 매핑
+    @Column(insertable = false, updatable = false)
+    private String nameNormalized;
+    @Column(insertable = false, updatable = false)
+    private String korNameNormalized;
     @OneToMany(mappedBy = "cardModel")
     private List<CardImage> cardImages;    
 }

@@ -16,7 +16,7 @@ import LimitBoard from './components/LimitBoard';
 import Card from './classes/Card';
 import { sortCards, saveUrl } from './common/deckUtils';
 import alertCard from './img/black-magician-girl-card-8bit.png';
-import konamiGif from './img/1749718043.gif';
+import konamiGif from './img/1750263964.gif';
 
 
 

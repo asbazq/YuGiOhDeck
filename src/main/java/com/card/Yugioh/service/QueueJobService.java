@@ -29,7 +29,7 @@ public class QueueJobService {
     private static final String WAITING_PREFIX = "waiting:";
     private static final String RUNNING_PREFIX = "running:";
 
-    @Scheduled(fixedRate = 10_000)
+    @Scheduled(fixedRate = 10_000, initialDelayString = "20000")
     public void expire() {
         redis.keys(RUNNING_PREFIX + "*").forEach(runKey -> {
             String qid = runKey.substring(RUNNING_PREFIX.length());

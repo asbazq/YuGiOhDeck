@@ -10,7 +10,7 @@ import com.card.Yugioh.security.QueueConfig;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/admin/queue")
+@RequestMapping("/api/admin/queue")
 @RequiredArgsConstructor
 public class QueueAdminController {
 
