@@ -2,191 +2,261 @@
 
 ---
 
-![image](https://github.com/user-attachments/assets/ba7d31e0-cf7e-48d4-a630-731af539ca94)
-
-
-- **프로젝트 주제:** 유희왕 덱 구성
-- **개요:** 기존 덱 공유 방식은 영어와 스크린샷 위주로 카드 정보를 제공하여 사용자가 카드 정보를 알아보기 어려움
-- **기간:** 2024년 7월 20일 - 2024년 7월 24일
-- **기술 스택:** Spring Boot, MySQL, S3, javaScript
-- **구현 사항**
-    - 유희왕 카드 이미지를 DB에 저장하고 각 카드 ID로 라벨링
-        - 영어 및 한글로 검색 시 해당 카드 표출
-    - 덱 작성 및 관리
-        - 표출된 카드 좌클릭 시 덱에 추가, 우클릭 시 삭제
-    - URL에 덱 정보를 저장하여 손쉽게 덱 공유
-    - 카드 클릭 시 확대, 빛 반사 이펙트 및 이름 표시
-    - 리셋 버튼을 통한 빠른 초기화
-
-### 과정
+**유희왕 덱 구성 및 공유 플랫폼**
 
 ---
 
-- `mousemove` 이벤트를 통해 마우스 움직임에 따라 카드가 회전, `perspective` 로 3D느낌을 살림
-- `radial-gradient` 을 통해 빛 반사 구현
+## 목차
 
-```jsx
-overlay.style.background = `radial-gradient(circle at ${bgPosX}% ${bgPosY}%, rgba(255, 255, 255, 0.8), transparent 70%)`;
-cardContainer.style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+1. [개요](#개요)
+2. [기간](#기간)
+3. [기술 스택](#기술-스택)
+4. [주요 기능](#주요-기능)
+5. [설치 및 실행](#설치-및-실행)
+6. [URL 덱 공유](#url-덱-공유)
+7. [검색 및 Full-Text](#검색-및-full-text)
+8. [크롤링 및 스케줄링](#크롤링-및-스케줄링)
+9. [금지/제한 리스트 크롤링](#금지제한-리스트-크롤링)
+10. [이미지 처리 및 API](#이미지-처리-및-api)
+11. [대기열 처리](#대기열-처리)
+12. [모니터링 및 분석](#모니터링-및-분석)
+13. [디자인](#디자인)
+
+---
+
+## 개요
+
+![image](https://github.com/user-attachments/assets/0576c27d-67bb-4c86-b619-5dc7dd1d9979)
+
+* 기존 덱 공유 방식의 한계: 영어·스크린샷 위주로 카드 정보 확인이 어려움
+* **목표**: 한글·영어 지원 검색, URL 공유, UX 개선을 통해 덱 구성 경험 최적화
+
+## 기간
+
+* 2024년 7월 20일 – 2024년 7월 24일
+
+## 기술 스택
+
+* **백엔드**: Spring Boot, MySQL
+* **프론트엔드**: JavaScript, CSS (Tailwind)
+* **스토리지**: 로컬
+* **자동화**: Jsoup, Selenium
+* **검색**: MySQL Full-Text (ngram parser)
+
+---
+
+## 주요 기능
+
+* 카드 검색 (영어/한글) 및 정렬
+* 덱 작성·관리 (좌클릭 추가, 우클릭 삭제)
+* URL에 덱 상태를 압축·인코딩하여 공유
+* 카드 3D 회전·빛 반사 효과, 클릭 확대
+* 덱 초기화(리셋) 및 로딩 대기열 처리
+
+---
+
+## 설치 및 실행
+
+1. 리포지토리 클론
+
+   ```bash
+   git clone <repo-url>
+   ```
+2. 백엔드 실행
+
+   ```bash
+   ./gradlew bootRun
+   ```
+3. 프론트엔드 실행
+
+   ```bash
+   cd front/my-app
+   npm install && npm start
+   ```
+
+---
+
+## URL 덱 공유
+
+```js
+const dataObj = { cards: cardsContent, extra: extraDeckContent };
+const compressed = pako.deflate(JSON.stringify(dataObj), { to: 'string' });
+const encoded = btoa(compressed);
+window.history.pushState({}, '', `?deck=${encodeURIComponent(encoded)}`);
 ```
 
-- 덱 정보를 URL에 저장
-    - url 글자수 제한이 크롬(8,192자)**,** Internet Explorer(2,083자) 로 많은 양의 데이터를 저장할 수 있지만 최대 75개의 이미지를 저장하는데 한계가 있어, `pako` 를 통해 압축
-- `btoa`는 압축된 데이터를 **Base64** 인코딩하여 URL에 포함시킴
-- `window.history.pushState`는 이 인코딩된 데이터를 URL의 쿼리 파라미터로 추가하여 현재 페이지의 상태를 URL에 저장
-    - 해당 상태의 URL을 공유하는 것 만으로도 간단하게 덱을 공유
+* `pako`로 압축, `btoa`로 Base64 인코딩
+* 크롬(8,192자), IE(2,083자)까지 지원, 최대 \~75장 이미지 공유 가능
 
-```jsx
-// url에 저장된 카드 정보를 업데이트
-let cardsContent = document.getElementById('cardsContainer').innerHTML;
-let extraDeckContent = document.getElementById('extraDeck').innerHTML;
+---
 
-// 두 컨테이너의 내용을 결합
-const dataObj = { cardsContent, extraDeckContent };
-const dataStr = JSON.stringify(dataObj);
-// 데이터 압축
-let compressed = pako.deflate(dataStr, { to: 'string' });
-let save = btoa(compressed);
-// 현재 세션의 상태를 url에 저장
-window.history.pushState({data: save}, '', '?deck=' + encodeURIComponent(save));
-```
+## 검색 및 Full-Text
 
-- 최근 일주일 간 추가된 카드가 있다면 정보 크롤링
-    - 새로운 카드가 주기적으로 추가되므로 이를 스케줄링하여 크롤링
-    - `Jsoup`을 사용하여 카드 정보를 한국어로 업데이트
-    - 약 13,000장의 카드 정보를 크롤링하여 데이터베이스를 갱신
-        - 다량의 정보와 자동화가 굳이 필요하지 않은 단순 작업이기에 셀리니움보다는 Jsoup을 사용
+* **표준 JPQL** (prefix only):
 
-```jsx
-LocalDateTime oneWeekAgo = LocalDateTime.now().minus(7, ChronoUnit.DAYS);
-List<CardModel> cardModels = cardRepository.findByCreatedAtAfter(oneWeekAgo);
+  ```java
+  @Query("""
+  SELECT c FROM CardModel c
+  WHERE (:frameType = '' OR c.frameType = :frameType)
+    AND (LOWER(REPLACE(c.korName,' ','')) LIKE CONCAT(:norm,'%')
+      OR LOWER(REPLACE(c.name,' ','')) LIKE CONCAT(:norm,'%'))
+  """
+  Page<CardModel> searchByNameContaining(...);
+  ```
+* **ngram Full-Text** (중간 검색 지원):
 
-for (CardModel cardModel : cardModels) {
-    String cardName = cardModel.getName();
+  ```sql
+  ALTER TABLE card_model
+    ADD COLUMN name_normalized VARCHAR(255)
+      GENERATED ALWAYS AS (LOWER(REPLACE(name,' ',''))) STORED,
+    ADD COLUMN kor_name_normalized VARCHAR(255)
+      GENERATED ALWAYS AS (LOWER(REPLACE(kor_name,' ',''))) STORED;
 
-    // 카드 이름을 URL에 맞게 인코딩
-    String encodedUrl = URLEncoder.encode(cardName, StandardCharsets.UTF_8.toString());
-    String completeUrl = "https://yugioh.fandom.com/wiki/" + encodedUrl;
+  ALTER TABLE card_model
+    ADD FULLTEXT INDEX ft_idx_name_norm
+      (name_normalized, kor_name_normalized)
+      WITH PARSER ngram;
+  ```
 
-    Document doc = Jsoup.connect(completeUrl).get();
-    Element korName = doc.selectFirst("td.cardtablerowdata > span[lang=ko]");
+  ```java
+  @Query(value = """
+    SELECT * FROM card_model
+    WHERE (:frameType = '' OR frame_type = :frameType)
+      AND MATCH(name_normalized, kor_name_normalized)
+          AGAINST(:query IN BOOLEAN MODE)
+    """, nativeQuery = true)
+  Page<CardModel> searchByFullText(...);
+  ```
 
-    if (korName != null) {
-        // 한국어 이름을 찾은 경우
-        cardModel.setKorName(korName.text());
-        log.info("이름 : {}", korName.text());
-    } else {
-        // 한국어 이름을 찾지 못한 경우
-        cardModel.setKorName(cardModel.getName());
-        log.info("한국어 이름을 찾을 수 없습니다.");
-    }
+---
 
-    cardRepository.save(cardModel);
-```
+## 크롤링 및 스케줄링
 
-- 금지 리스트 크롤링
-    - 자동화가 필요한 부분은 `Selenium`을 사용하여 크롤링
-    - 데이터를 가져오는 시간을 확보하기 위해 `Thread.sleep()` 및 `WebDriverWait` 사용
+* **Jsoup**: 일주일 간 추가된 카드 크롤링, 한글명 업데이트
 
-```jsx
-public void limitCrawl() {
-        try {
-            driver.get("https://ygoprodeck.com/banlist/");
+  ```java
+  String encodedName = encodeCardName(card.getName());
+  String primaryUrl = "https://yugioh.fandom.com/wiki/" + encodedName;
+  String fallbackUrl = "https://yugipedia.com/wiki/"   + encodedName;
 
-            Thread.sleep(2000);
+  Document doc = fetchDoc(primaryUrl);
+  Document spareDoc = fetchDoc(fallbackUrl);
 
-            WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
-            WebElement banlistTypeElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banlisttype")));
-            // 'banlisttype'을 'Master Duel'로 설정
-            Select banlistTypeSelect = new Select(banlistTypeElement);
-            banlistTypeSelect.selectByValue("Master Duel");
+  // 이름 추출
+  String korName = extractKorName(doc, spareDoc);
+  if (korName != null) {
+      card.setKorName(korName);
+  } else {
+      log.info("한국어 이름을 찾을 수 없습니다: {}", card.getName());
+  }
+  ```
+* **스케줄 설정**: 매일/주기적으로 크롤링 스케줄러 등록
 
-            // 'banlistdate'를 최신 날짜로 설정
-            WebElement banlistDateElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banlistdate")));
-            Select banlistDateSelect = new Select(banlistDateElement);
-            banlistDateSelect.selectByIndex(0);  // 최신 항목을 선택
+---
 
-            // 'textView' 버튼 클릭
-            WebElement textView = wait.until(ExpectedConditions.elementToBeClickable(By.id("textButton")));
-            textView.click();
+## 금지/제한 리스트 크롤링
 
-            // 데이터를 가져올 시간을 확보하기 위해 잠시 대기
-            wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banned")));
-            WebElement listElement = driver.findElement(By.id(listId));
-            List<WebElement> spans = listElement.findElements(By.xpath(".//span"));
-            for (WebElement span : spans) {
-                List<WebElement> strongElements = span.findElements(By.xpath(".//span[1]/span[1]/a/strong"));
-                for (WebElement strong : strongElements) {
-                    log.info("{} 리스트 : {}", listId, strong.getText());
-                    LimitRegulation limitRegulation = new LimitRegulation();
-                    limitRegulation.setCardName(strong.getText());
-                    limitRegulation.setRestrictionType("listId");
-                    limitRegulationRepository.save(limitRegulation);
-                }
-            }
+* **Selenium**: Master Duel 리스트 추출
 
-        } catch (Exception e) {
-            log.error("데이터를 가져오는 중 오류가 발생했습니다.", e);
-            e.printStackTrace();
-        } finally {
-            driver.quit();
-        }
-    }
-```
+  ```java
+  WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
+  WebElement banlistTypeElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banlisttype")));
+  // 'banlisttype'을 'Master Duel'로 설정
+  Select banlistTypeSelect = new Select(banlistTypeElement);
+  banlistTypeSelect.selectByValue("Master Duel");
 
-- 외부 API를 통해 카드 이미지 데이터를 수집하고 저장
-    - 로컬 서버를 통해 이미지 로딩 속도를 최적화하고 운영 비용을 절감
-    - REST API를 구현하여 저장된 이미지를 제공, 데이터 제어 강화
+  // 'banlistdate'를 최신 날짜로 설정
+  WebElement banlistDateElement = wait.until(ExpectedConditions.visibilityOfElementLocated(By.id("banlistdate")));
+  Select banlistDateSelect = new Select(banlistDateElement);
+  banlistDateSelect.selectByIndex(0);  // 최신 항목을 선택
 
-```jsx
-public void fetchAndSaveCardImages() throws IOException {
-    String response = Request.get(apiUrl).execute().returnContent().asString();
-    JSONArray cardData = new JSONObject(response).getJSONArray("data");
-    
-    for (int i = 0; i < cardData.length(); i++) {
-        JSONObject card = cardData.getJSONObject(i);
-        JSONArray cardImages = card.getJSONArray("card_images");
+  // 'textView' 버튼 클릭
+  WebElement textView = wait.until(ExpectedConditions.elementToBeClickable(By.id("textButton")));
+  textView.click();
 
-        for (int j = 0; j < cardImages.length(); j++) {
-            JSONObject imageInfo = cardImages.getJSONObject(j);
-            String imageUrl = imageInfo.getString("image_url");
-            Long imageId = imageInfo.getLong("id");
-            Path outputFile = savePath.resolve(imageId + ".jpg");
+  ```
 
-             try (InputStream in = new URL(imageUrl).openStream()) {
-		            BufferedImage image = ImageIO.read(in);
-		            Files.createDirectories(output.getParent());
-		            ImageIO.write(image, "jpg", output.toFile());
-		        }
-        }
-    }
-}
+---
 
-@GetMapping("/images/{filename}")
-public ResponseEntity<Resource> getImage(@PathVariable("filename") String filename) {
-    try {
-        Path imagePath = savePath.resolve(filename);
-        Resource resource = new UrlResource(imagePath.toUri());
-        if (resource.exists() || resource.isReadable()) {
-            return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
-                .body(resource);
+## 이미지 처리 및 API
+
+* 외부 API에서 카드 이미지 수집, 로컬서버 저장
+* 로컬 캐시 서버로 속도 최적화
+* REST endpoint 제공
+
+  ```java
+      @GetMapping("/images/{filename}")
+      public ResponseEntity<Resource> getImage(@PathVariable("filename") String filename) {
+          try {
+              Path imagePath = savePath.resolve(filename);
+              Resource resource = new UrlResource(imagePath.toUri());
+
+              if (resource.exists() || resource.isReadable()) {
+                  return ResponseEntity.ok()
+                      .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
+                      .body(resource);
+              } else {
+                  return ResponseEntity.notFound().build();
+              }
+          } catch(MalformedURLException e) {
+              return ResponseEntity.badRequest().build();
+          }
+      }
+  ```
+
+---
+
+## 대기열 처리
+
+* zset으로 대기열을 구축
+* 접속 유저 leave 시 자동으로 승급
+* 접속 방치 유저 자동 퇴출
+* score 별로 차등을 주어 우선 순위 줌
+
+```java
+    private void promoteNextUser(String qid) {
+        String runKey  = RUNNING_PREFIX + qid;
+        String vipKey  = WAITING_PREFIX + "vip";
+        String mainKey = WAITING_PREFIX + "main";
+        if (totalRunningSize() >= maxRunning()) return;
+
+        TypedTuple<String> vipTuple  = firstWithScore(vipKey);
+        TypedTuple<String> mainTuple = firstWithScore(mainKey);
+
+        if (vipTuple == null && mainTuple == null) return;
+
+        double vipScore  = vipTuple  == null ? Double.MAX_VALUE : vipTuple.getScore() - VIP_PRIORITY_BONUS;
+        double mainScore = mainTuple == null ? Double.MAX_VALUE : mainTuple.getScore();
+
+        String uid = "";
+        boolean isVip = false;
+        if (vipScore <= mainScore) {
+            uid = vipTuple.getValue();
+            isVip = true;
         } else {
-            return ResponseEntity.notFound().build();
+            uid = mainTuple.getValue();
+            isVip = false;
         }
-    } catch (MalformedURLException e) {
-        return ResponseEntity.badRequest().build();
+
+        if (isVip) redis.opsForZSet().remove(vipKey, uid);
+        else redis.opsForZSet().remove(mainKey, uid);
+
+        redis.opsForZSet().add(runKey, uid, Instant.now().toEpochMilli());
+        notifier.sendToUser(uid, "{\"type\":\"ENTER\"}");
     }
-}
 ```
 
-- **Google Analytics를 통한 모니터링 및 분석**
-    - 사용자 트래픽, 행동 패턴 및 덱 구성 빈도를 분석
-    - 분석 결과를 바탕으로 UX/UI 개선 및 기능 최적화
-    - 사용자 행동 데이터를 분석하여 가장 많이 사용된 기능을 파악하고 개선 사항 도출
+## 모니터링 및 분석
 
-### 디자인
+* **Google Analytics**: 사용자 행동 분석
+* 덱 구성 빈도, 인기 카드 트렌드 추적
+* UI/UX 개선 인사이트 수집
 
 ---
-![image](https://github.com/user-attachments/assets/fe24651f-63b5-46f9-a4cb-52bfbc2a78fe)
+
+## 디자인
+
+![image](https://github.com/user-attachments/assets/3e9044ac-91ff-4cc3-88af-866ebcaf6e65)
+
+---
 
