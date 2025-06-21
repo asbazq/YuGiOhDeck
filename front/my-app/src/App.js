@@ -41,6 +41,7 @@ function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const orientationRef = useRef({ beta: 0, gamma: 0 });
   const activeTouchIndexRef = useRef(null);
+  const longPressTimeoutRef = useRef(null);
   
  useEffect(() => {
     if (typeof window.ChannelIO === 'function') {
@@ -279,7 +280,8 @@ function App() {
         card.classList.add('expanded');
         card.style.top = '';
         card.style.left = '';
-        card.style.transform = 'translate(-50%, -50%) scale(4)';
+        const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+        card.style.transform = `translate(-50%, -50%) scale(${scaleFactor})`;
       });
 
       card.addEventListener('transitionend', function handler() {
@@ -344,13 +346,15 @@ function App() {
       const rotateX = (40 / 143) * y - 26;
 
       if (isExpanded) {
-        cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(4) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+        cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(${scaleFactor}) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
       } else {
-                cardRefs.current[index].style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+        cardRefs.current[index].style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
       }
     } else {
       if (isExpanded) {
-        cardRefs.current[index].style.transform = 'translate(-50%, -50%) scale(4)';
+        const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+        cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(${scaleFactor})`;
       } else {
         cardRefs.current[index].style.transform = '';
       }
@@ -370,18 +374,29 @@ function App() {
     if (cardRefs.current[index]) {
       overlayRefs.current[index].style.background = 'none';
       if (isExpanded) {
-        cardRefs.current[index].style.transform = 'translate(-50%, -50%) scale(4)';
+        const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+        cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(${scaleFactor})`;
       } else {
         cardRefs.current[index].style.transform = effectsEnabled ? 'perspective(350px) rotateY(0deg) rotateX(0deg)' : '';
       }
     }
   };
 
-    const handleTouchStart = (index) => {
+  const handleTouchStart = (index) => {
     activeTouchIndexRef.current = index;
+    clearTimeout(longPressTimeoutRef.current);
+    longPressTimeoutRef.current = setTimeout(() => {
+      if (expandedIndexRef.current !== null) return;
+      if (index < mainDeck.length) {
+        removeCardFromDeck(index, 'main');
+      } else {
+        removeCardFromDeck(index - mainDeck.length, 'extra');
+      }
+    }, 2000);
   };
 
   const handleTouchEnd = () => {
+    clearTimeout(longPressTimeoutRef.current);
     if (activeTouchIndexRef.current !== null) {
       handleMouseOut(activeTouchIndexRef.current);
     }
@@ -444,12 +459,14 @@ function App() {
             newY = currentY + Math.abs(scrollDiff) * 10;
           }
 
-          card.style.transform = `translate(-50%, ${newY}px) scale(4)`;
+          const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+          card.style.transform = `translate(-50%, ${newY}px) scale(${scaleFactor})`;
 
           clearTimeout(scrollTimeout);
           scrollTimeout = setTimeout(() => {
             if (expandedIndexRef.current !== null) {
-              card.style.transform = 'translate(-50%, -50%) scale(4)';
+              const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+              card.style.transform = `translate(-50%, -50%) scale(${scaleFactor})`;
             }
           }, 200);
 

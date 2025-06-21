@@ -65,6 +65,7 @@
 #limitBoard .search-result-item {
   width: 160px;
   padding: 0 8px;
+  margin-bottom: 0;
 }
 
 #limitBoard .search-result-item p {
@@ -169,11 +170,26 @@
   }
 
   #limitBoard .search-result-item {
-    width: 98px;
-    height: 163px;
+    width: 85px;
+    margin-bottom: auto;
   }
 
   #limitBoard .search-result-item p {
     margin-top: 5px;
+    font-size: 0.5em;
   }
+
+  #directionPad {
+    left: 40px;
+  }
+
+  #showPadButton {
+    left: 20%;
+  }
+
+  .limit-tabs {
+    left: 30%;
+  }
+
+
 }
