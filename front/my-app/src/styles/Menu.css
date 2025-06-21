@@ -68,6 +68,12 @@
   cursor: pointer;
 }
 
+@media (max-width: 768px) {
+  .menu-button {
+    left: 40px;
+  }
+}
+
 /* span 3개로 된 선을 절대위치로 배치 */
 .menu-button span {
   position: absolute;

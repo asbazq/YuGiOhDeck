@@ -49,12 +49,19 @@
   content: '▼';
   position: absolute;
   top: 50%;
-  left: 85px;                     /* 테두리(4px)+패딩(8px) 고려 */
+  left: 100px;                     /* 테두리(4px)+패딩(8px) 고려 */
   transform: translateY(-50%);
   font-family: 'NeoDunggeunmo', sans-serif;
   font-size: 14px;
   color: #000;
   pointer-events: none;
+}
+
+
+@media (max-width: 768px) {
+  .search-container::after {
+    left: 60px;
+  }
 }
 
 .search-container select option {

@@ -158,3 +158,22 @@
   font-family: 'NeoDunggeunmo', sans-serif;
   z-index: 10;
 }
+
+@media (max-width: 768px) {
+  .limit-main {
+    width: 70%;
+  }
+
+  .limit-container {
+    padding-top: 100px;
+  }
+
+  #limitBoard .search-result-item {
+    width: 98px;
+    height: 163px;
+  }
+
+  #limitBoard .search-result-item p {
+    margin-top: 5px;
+  }
+}

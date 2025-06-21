@@ -135,32 +135,55 @@
 
 @media (max-width: 768px) {
     .card-container {
-        max-width: 49px;
-        max-height: 73px;
+        width: 118px;
+        height: 173px;
+    }
+
+    .expanded {
+        transform: scale(2.5);
+    }
+
+    .card-detail-desc-container {
+        width: 90%;
     }
 
     .deck-card-wrapper {
-        width: 49px;
-        height: 93px;
+        width: 118px;
+        height: 193px;
     }
 
     .card {
-        max-height: 73px;
+        height: 173px;
     }
 }
 
 @media (max-width: 480px) {
     .card-container {
-        max-width: 29.4px;
-        max-height: 42.9px;
+        width: 98px;
+        height: 143px;
+    }
+
+    .expanded {
+        transform: scale(2.3);
+        left: 50%
+    }
+
+    .card-detail-desc-container {
+        width: 90%;
+        left: 50%
+    }
+
+    .card-detail-container {
+        left: 50%;
+
     }
 
     .deck-card-wrapper {
-        width: 29.4px;
-        height: 63px;
+        width: 98px;
+        height: 163px;
     }
 
     .card {
-        max-height: 42.9px;
+        height: 143px;
     }
 }

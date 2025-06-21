@@ -9,7 +9,9 @@ function DeckCard({
   onClick,
   onContextMenu,
   onMouseMove,
-  onMouseOut
+  onMouseOut,
+  onTouchStart,
+  onTouchEnd
 }) {
   return (
     <div className="deck-card-wrapper">
@@ -19,6 +21,8 @@ function DeckCard({
         onContextMenu={onContextMenu}
         onMouseMove={e => onMouseMove(e, index)}
         onMouseOut={() => onMouseOut(index)}
+        onTouchStart={() => onTouchStart(index)}
+        onTouchEnd={() => onTouchEnd()}
         ref={el => {
           cardRefs.current[index] = el;
           overlayRefs.current[index] = el?.querySelector('.overlay');

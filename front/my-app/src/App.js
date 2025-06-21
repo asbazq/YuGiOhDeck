@@ -7,6 +7,7 @@ import './styles/Message.css'
 import './styles/LimitBoard.css'
 import './styles/Menu.css'
 import './styles/Button.css'
+import './styles/MobileSearch.css';
 
 import pako from 'pako';
 import SearchBar from './components/SearchBar';
@@ -36,6 +37,10 @@ function App() {
   const [expandedIndex, setExpandedIndex] = useState(null);
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   const [activeBoard, setActiveBoard] = useState('deck');
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const orientationRef = useRef({ beta: 0, gamma: 0 });
+  const activeTouchIndexRef = useRef(null);
   
  useEffect(() => {
     if (typeof window.ChannelIO === 'function') {
@@ -45,6 +50,23 @@ function App() {
     }
   }, []);
 
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      if (!mobile) {
+        setIsSearchOpen(false);
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (activeBoard !== 'deck') {
+      setIsSearchOpen(false);
+    }
+  }, [activeBoard]);
 
    useEffect(() => {
     const script = document.createElement("script");
@@ -303,39 +325,45 @@ function App() {
     }
   };
 
+  const applyCardEffect = (x, y, index) => {
+    if (!cardRefs.current[index]) return;
+    const width = cardRefs.current[index].clientWidth;
+    const height = cardRefs.current[index].clientHeight;
+
+    const bgPosX = (x / width) * 100;
+    const bgPosY = (y / height) * 100;
+
+    if (effectsEnabled) {
+      overlayRefs.current[index].style.background = `radial-gradient(circle at ${bgPosX}% ${bgPosY}%, rgba(255, 255, 255, 0.8), transparent 70%)`;
+    } else {
+      overlayRefs.current[index].style.background = 'none';
+    }
+
+    if (effectsEnabled) {
+      const rotateY = (-40 / 98) * x + 20;
+      const rotateX = (40 / 143) * y - 26;
+
+      if (isExpanded) {
+        cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(4) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+      } else {
+                cardRefs.current[index].style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
+      }
+    } else {
+      if (isExpanded) {
+        cardRefs.current[index].style.transform = 'translate(-50%, -50%) scale(4)';
+      } else {
+        cardRefs.current[index].style.transform = '';
+      }
+    }
+  };
+
   const handleMouseMove = (e, index) => {
     if (isAnimatingRef.current) return;
     if (cardRefs.current[index]) {
-      const x = e.nativeEvent.offsetX;
-      const y = e.nativeEvent.offsetY;
-
-      const bgPosX = (x / cardRefs.current[index].clientWidth) * 100;
-      const bgPosY = (y / cardRefs.current[index].clientHeight) * 100;
-
-      if (effectsEnabled) {
-        overlayRefs.current[index].style.background = `radial-gradient(circle at ${bgPosX}% ${bgPosY}%, rgba(255, 255, 255, 0.8), transparent 70%)`;
-      } else {
-        overlayRefs.current[index].style.background = 'none';
-      }
-
-      if (effectsEnabled) {
-        const rotateY = (-40 / 98) * x + 20;
-        const rotateX = (40 / 143) * y - 26;
-
-        if (isExpanded) {
-          cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(4) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-        } else {
-          cardRefs.current[index].style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-        }
-      } else {
-        if (isExpanded) {
-          cardRefs.current[index].style.transform = 'translate(-50%, -50%) scale(4)';
-        } else {
-          cardRefs.current[index].style.transform = '';
-        }
-      } 
+      applyCardEffect(e.nativeEvent.offsetX, e.nativeEvent.offsetY, index);
     }
   };
+
 
   const handleMouseOut = (index) => {
      if (isAnimatingRef.current) return;
@@ -347,6 +375,17 @@ function App() {
         cardRefs.current[index].style.transform = effectsEnabled ? 'perspective(350px) rotateY(0deg) rotateX(0deg)' : '';
       }
     }
+  };
+
+    const handleTouchStart = (index) => {
+    activeTouchIndexRef.current = index;
+  };
+
+  const handleTouchEnd = () => {
+    if (activeTouchIndexRef.current !== null) {
+      handleMouseOut(activeTouchIndexRef.current);
+    }
+    activeTouchIndexRef.current = null;
   };
 
   const handleOverlayClick = () => {
@@ -428,6 +467,29 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    if (!isMobile || !window.DeviceOrientationEvent) return;
+
+    const handleOrientation = (event) => {
+      orientationRef.current = { beta: event.beta || 0, gamma: event.gamma || 0 };
+      const index = activeTouchIndexRef.current;
+      if (index === null) return;
+      const card = cardRefs.current[index];
+      if (!card) return;
+      const width = card.clientWidth;
+      const height = card.clientHeight;
+      const gamma = Math.max(-45, Math.min(45, orientationRef.current.gamma));
+      const beta = Math.max(-45, Math.min(45, orientationRef.current.beta));
+      const x = ((gamma + 45) / 90) * width;
+      const y = ((beta + 45) / 90) * height;
+      applyCardEffect(x, y, index);
+    };
+
+    window.addEventListener('deviceorientation', handleOrientation);
+    return () => window.removeEventListener('deviceorientation', handleOrientation);
+  }, [isMobile]);
+
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   return (
@@ -448,6 +510,33 @@ function App() {
         <button onClick={() => { setActiveBoard('deck'); setIsMenuOpen(false); }}>덱 빌딩</button>
       </div>
     </div>
+    {isMobile && activeBoard === 'deck' && (
+      <>
+        <button
+          className="search-button"
+          onClick={() => setIsSearchOpen(true)}
+          aria-label="검색창 열기"
+        >
+          검색
+        </button>
+        <div
+          className={`search-overlay ${isSearchOpen ? 'open' : ''}`}
+          onClick={() => setIsSearchOpen(false)}
+        ></div>
+        <div className={`search-panel ${isSearchOpen ? 'open' : ''}`}>
+          <SearchBar
+            searchKeyword={searchKeyword}
+            onChange={setSearchKeyword}
+            onSearch={handleSearch}
+            isLoading={isLoading}
+            frameType={frameType}
+            onFrameChange={setFrameType}
+          />
+          <div className="divider"></div>
+          <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
+        </div>
+      </>
+    )}
       <div
         id="msgWrap"
         style={{ display: message ? 'flex' : 'none' }}
@@ -537,9 +626,11 @@ function App() {
                 if (expandedIndexRef.current !== null) return;
                 removeCardFromDeck(index, 'main');
               }}
-              onMouseMove={handleMouseMove}
-              onMouseOut={handleMouseOut}
-            />
+                onMouseMove={handleMouseMove}
+                onMouseOut={handleMouseOut}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              />
           ))}
         </div>
         <div id="extraDeckLabel">엑스트라 덱 <span>{extraDeck.length}</span></div>
@@ -557,24 +648,28 @@ function App() {
                 if (expandedIndexRef.current !== null) return;
                 removeCardFromDeck(index, 'extra');
               }}
-              onMouseMove={handleMouseMove}
-              onMouseOut={handleMouseOut}
-            />
+                onMouseMove={handleMouseMove}
+                onMouseOut={handleMouseOut}
+                onTouchStart={handleTouchStart}
+                onTouchEnd={handleTouchEnd}
+              />
           ))}
         </div>
       </div>
-      <div className="right-container">
-        <SearchBar
-          searchKeyword={searchKeyword}
-          onChange={setSearchKeyword}
-          onSearch={handleSearch}
-          isLoading={isLoading}
-          frameType={frameType}
-          onFrameChange={setFrameType}
-        />
-        <div className="divider"></div>
-        <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
-      </div>
+      {!isMobile && (
+        <div className="right-container">
+          <SearchBar
+            searchKeyword={searchKeyword}
+            onChange={setSearchKeyword}
+            onSearch={handleSearch}
+            isLoading={isLoading}
+            frameType={frameType}
+            onFrameChange={setFrameType}
+          />
+          <div className="divider"></div>
+          <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
+        </div>
+      )}
     </div>
    )}
     {activeBoard === 'limit' && (

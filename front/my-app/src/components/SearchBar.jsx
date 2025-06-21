@@ -12,7 +12,7 @@ function SearchBar({
   // Enter 키 눌렀을 때만 실행, 로딩 중엔 무시
   const handleKeyDown = useCallback(
     e => {
-      if (e.key === 'Enter' && !isLoading) {
+      if (e.key === 'Enter' && !isLoading && !e.nativeEvent.isComposing) {
         onSearch(e);
       }
     },
