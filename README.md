@@ -19,8 +19,9 @@
 9. [금지/제한 리스트 크롤링](#금지제한-리스트-크롤링)
 10. [이미지 처리 및 API](#이미지-처리-및-api)
 11. [대기열 처리](#대기열-처리)
-12. [모니터링 및 분석](#모니터링-및-분석)
-13. [디자인](#디자인)
+12. [TTL과 장기간 미사용 사용자 처리](#TTL과-장기간-미사용-사용자-처리)
+13. [모니터링 및 분석](#모니터링-및-분석)
+14. [디자인](#디자인)
 
 ---
 
@@ -245,6 +246,34 @@ window.history.pushState({}, '', `?deck=${encodeURIComponent(encoded)}`);
         notifier.sendToUser(uid, "{\"type\":\"ENTER\"}");
     }
 ```
+
+## TTL과 장기간 미사용 사용자 처리
+
+* **TTL 설정:** Redis Sorted Set의 각 사용자 엔트리마다 score로 타임스탬프를 저장하고, `EXPIRE`를 걸어 세션 만료 시 자동 삭제
+* **비활성 사용자 제어 로직:**
+
+  1. `@Scheduled` 어노테이션을 사용하여 10초 주기로 모든 RUNNING ZSet 점검
+  2. 현재 시각 기준으로 TTL (예: 5분) 초과 사용자를 검색 후 제거
+  3. 세션 만료 사용자에게 WebSocket으로 `TIMEOUT` 메시지 전송 후 RUNNING ZSet에서 제거
+
+```java
+long cutoff = System.currentTimeMillis() - sessionTtlMillis();
+Set<String> expired = redis.opsForZSet().rangeByScore(runKey, 0, cutoff);
+expired.forEach(uid -> notifier.sendToUser(uid, "{\"type\":\"TIMEOUT\"}"));
+```
+
+* **Client 측 heartbeat 처리:**
+
+  * React에서 `useCallback`으로 ping 메시지를 주기적으로 서버에 전송하여 세션 유지
+
+```tsx
+const sendPing = useCallback(() => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send('PING');
+    }
+}, []);
+```
+
 
 ## 모니터링 및 분석
 
