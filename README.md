@@ -286,6 +286,14 @@ const sendPing = useCallback(() => {
 ## 디자인
 
 ![image](https://github.com/user-attachments/assets/3e9044ac-91ff-4cc3-88af-866ebcaf6e65)
+![image](https://github.com/user-attachments/assets/ef038b14-4ceb-48d4-a327-566e271f3a57)
+![image](https://github.com/user-attachments/assets/215f2a22-de91-4a2e-9510-02e3afe12153)
+![image](https://github.com/user-attachments/assets/d4f7f146-a847-4bde-83d2-5ff053cbffad)
+![image](https://github.com/user-attachments/assets/c7dd0bf7-3d64-4841-9939-ffe19d4d65f7)
+
+
+
+
 
 ---
 
