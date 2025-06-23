@@ -65,7 +65,7 @@ public class CardService {
         // WebDriverManager를 사용하여 ChromeDriver를 자동으로 관리
         // WebDriverManager.chromedriver().setup();
         // WebDriverManager.chromedriver().browserVersion("127.0.6533.120").setup();
-        // System.setProperty("selenium.manager.disabled", "true");
+        System.setProperty("selenium.manager.disabled", "true");
         // 컨테이너에 apk로 설치된 크로미움/크롬드라이버 경로
         String chromeBin    = System.getenv("WEB_DRIVER_CHROME_BIN");
         String chromeDriver = System.getenv("WEB_DRIVER_CHROME_DRIVER");

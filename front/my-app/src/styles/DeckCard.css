@@ -126,7 +126,7 @@
     .expanded{
         transform:scale(3);
         left: 50%;
-        top: 40%;
+        top: 45%;
     }
 }
 
@@ -148,12 +148,15 @@
 
     .card-detail-desc-container {
         width: 90%;
-        left: 50%
+        left: 50%;
+        font-size: 0.7em;
+        bottom: 10%;
+
     }
 
     .card-detail-container {
-        left: 50%;
         top: 5%;
+        left: 50%;
     }
 
     .deck-card-wrapper {

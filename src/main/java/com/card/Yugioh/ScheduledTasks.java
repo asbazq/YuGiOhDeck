@@ -32,18 +32,18 @@ public class ScheduledTasks {
     }
 
     // 2주마다 실행되는 스케줄러 설정 (Cron 표현식 사용)
-    // 초(0초),분(0분),시간(자정), */14(14일마다), *(매월), ?(요일을 지정하지 않음)
-    @Scheduled(cron = "0 0 0 */14 * ?")
+    // 초(0초),분(0분),시간(3시), */14(14일마다), *(매월), ?(요일을 지정하지 않음)
+    @Scheduled(cron = "0 0 3 */14 * ?")
     public void fetchApiData() {
         try {
             imageService.fetchAndSaveCardImages();
         } catch (IOException e) {
             e.printStackTrace();
         }
-        // cardService.crawlAll();
+        cardService.crawlAll();
     }
-    // 초(0초),분(0분),시간(자정), 1: 매월 1일 15일 *: 매달 *: 매년
-    @Scheduled(cron = "0 0 0 1,15 * *")
+    // 초(0초),분(0분),시간(3시), 1: 매월 1일 15일 *: 매달 *: 매년
+    @Scheduled(cron = "0 0 3 1,15 * *")
     public void fetchLimtData() {
         cardService.limitCrawl();
     }

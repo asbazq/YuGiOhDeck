@@ -1,0 +1,23 @@
+.hover-info {
+  position: absolute;
+  width: 220px;
+  padding: 10px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 4px solid #000;
+  box-shadow: 8px 8px 0 #272727;
+  z-index: 200;
+  font-size: 12px;
+  font-family: 'NeoDunggeunmo', sans-serif;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+.hover-info-name {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+.hover-info-desc {
+    white-space: pre-line;
+}
+.search-results-wrapper {
+  position: relative;
+}

@@ -13,6 +13,7 @@ html,body{
     justify-content:center;
     width:100%;
     box-sizing:border-box;
+    
 }
 
 .left-container,
@@ -27,8 +28,12 @@ html,body{
     overflow-y:auto;
 }
 
-.left-container{width:80%;}
-.right-container{width:20%;position:relative;}
+.left-container{
+  width:80%;
+}
+.right-container{
+  width:20%;
+}
 
 /* ---------- TITLES & LABELS ---------- */
 #title{
@@ -59,7 +64,7 @@ html,body{
   font-size: 10px;
   color: #666;
   background: rgba(255,255,255,0.8);
-  font-family: 'Press Start 2P', monospace;
+  font-family: 'NeoDunggeunmo', sans-serif;
 }
 
 .board-switch {

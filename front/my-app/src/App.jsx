@@ -23,26 +23,43 @@ import konamiGif from './img/1750263964.gif';
 
 
 function App() {
+  // 덱에 들어간 카드 상태 (메인/엑스트라)
   const [mainDeck, setMainDeck] = useState([]);
   const [extraDeck, setExtraDeck] = useState([]);
+  // 검색결과, 검색어, 프레임 타입
   const [searchResults, setSearchResults] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
   const [frameType, setFrameType] = useState('');
+  // 검색 페이지네이션 및 로딩 상태
   const [currentPage, setCurrentPage] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const [hasMoreResults, setHasMoreResults] = useState(true);
+  // 메시지
   const [message, setMessage] = useState('');
+  // 카드 상세보기 및 확대 상태
   const [cardDetail, setCardDetail] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [expandedIndex, setExpandedIndex] = useState(null);
+  // 카드 회전/광택 효과 on/off
   const [effectsEnabled, setEffectsEnabled] = useState(true);
+  // 'deck' or 'limit'
   const [activeBoard, setActiveBoard] = useState('deck');
+  // 모바일 여부 및 모바일 검색창 오픈 여부
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const orientationRef = useRef({ beta: 0, gamma: 0 });
   const activeTouchIndexRef = useRef(null);
   const longPressTimeoutRef = useRef(null);
-  
+  const [orientationPermissionGranted, setOrientationPermissionGranted] = useState(false);
+  const orientationRequestRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission !== 'function') {
+      setOrientationPermissionGranted(true);
+    }
+  }, []);
+
  useEffect(() => {
     if (typeof window.ChannelIO === 'function') {
       window.ChannelIO('boot', {
@@ -382,7 +399,53 @@ function App() {
     }
   };
 
+const requestOrientationPermission = useCallback(async () => {
+    if (orientationPermissionGranted || orientationRequestRef.current) return;
+    orientationRequestRef.current = true;
+    let granted = false;
+
+    if (typeof DeviceOrientationEvent !== 'undefined' &&
+        typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        const res = await DeviceOrientationEvent.requestPermission();
+        if (res === 'granted') {
+          granted = true;
+        }
+      } catch (err) {
+        console.error('Orientation permission denied', err);
+      }
+    }
+
+    if (!granted && typeof DeviceMotionEvent !== 'undefined' &&
+        typeof DeviceMotionEvent.requestPermission === 'function') {
+      try {
+        const res = await DeviceMotionEvent.requestPermission();
+        if (res === 'granted') {
+          granted = true;
+        }
+      } catch (err) {
+        console.error('Motion permission denied', err);
+      }
+    }
+
+    if (!granted) {
+      granted = true; // assume permission not required (Android)
+    }
+
+    if (granted) setOrientationPermissionGranted(true);
+  }, [orientationPermissionGranted]);
+
+  useEffect(() => {
+    if (orientationPermissionGranted) return;
+    const firstTouch = () => {
+      requestOrientationPermission();
+    };
+    window.addEventListener('touchstart', firstTouch, { once: true });
+    return () => window.removeEventListener('touchstart', firstTouch);
+  }, [orientationPermissionGranted, requestOrientationPermission]);
+
   const handleTouchStart = (index) => {
+    requestOrientationPermission();
     activeTouchIndexRef.current = index;
     clearTimeout(longPressTimeoutRef.current);
     longPressTimeoutRef.current = setTimeout(() => {
@@ -485,7 +548,7 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (!isMobile || !window.DeviceOrientationEvent) return;
+    if (!isMobile || !window.DeviceOrientationEvent || !orientationPermissionGranted) return;
 
     const handleOrientation = (event) => {
       orientationRef.current = { beta: event.beta || 0, gamma: event.gamma || 0 };
@@ -504,7 +567,7 @@ function App() {
 
     window.addEventListener('deviceorientation', handleOrientation);
     return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, [isMobile]);
+  }, [isMobile, orientationPermissionGranted]);
 
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);

@@ -49,7 +49,7 @@
   content: '▼';
   position: absolute;
   top: 50%;
-  left: 100px;                     /* 테두리(4px)+패딩(8px) 고려 */
+  left: 90px;                     /* 테두리(4px)+패딩(8px) 고려 */
   transform: translateY(-50%);
   font-family: 'NeoDunggeunmo', sans-serif;
   font-size: 14px;

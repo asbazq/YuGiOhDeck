@@ -1,12 +1,14 @@
 import React from 'react';
 import LazyImage from './LazyImage';
 
-function SearchResultItem({ result, onClick }) {
+function SearchResultItem({ result, onClick, onHover }) {
   const { imageUrl, name, frameType, restrictionType } = result;
   return (
     <div
       className="search-result-item"
       onClick={() => onClick(imageUrl, frameType, name)}
+      onMouseEnter={e => onHover(name, e.currentTarget)}
+      onMouseLeave={() => onHover(null)}
     >
       <LazyImage src={`/images/${imageUrl.split('/').pop()}`} alt={name} />
       {restrictionType && restrictionType !== 'unlimited' && (
