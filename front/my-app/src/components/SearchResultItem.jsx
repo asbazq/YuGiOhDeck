@@ -7,7 +7,7 @@ function SearchResultItem({ result, onClick, onHover }) {
     <div
       className="search-result-item"
       onClick={() => onClick(imageUrl, frameType, name)}
-      onMouseEnter={e => onHover(name, e.currentTarget)}
+      onPointerEnter={e => onHover(name, e.currentTarget, e.pointerType)}
       onMouseLeave={() => onHover(null)}
     >
       <LazyImage src={`/images/${imageUrl.split('/').pop()}`} alt={name} />

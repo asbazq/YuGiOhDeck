@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { trackEvent } from './utils/analytics';
 import './styles/App.css';
 import './styles/DeckCard.css';
 import './styles/SearchBar.css';
@@ -160,6 +161,12 @@ function App() {
 
   useEffect(() => {
     const handleScroll = () => {
+      const percent = Math.round(
+        window.scrollY /
+        (document.body.scrollHeight - window.innerHeight) *
+        100
+      );
+      trackEvent('scroll_depth', { percent_scrolled: percent });
       if (window.innerHeight + document.documentElement.scrollTop >= document.documentElement.offsetHeight - 1 &&
         hasMoreResults && !isLoading) {
         searchCards(searchKeyword, frameType, currentPage + 1);
@@ -176,6 +183,10 @@ function App() {
         setCurrentPage(0);
         setHasMoreResults(true);
         searchCards(searchKeyword, frameType, 0);
+        trackEvent('search', {
+          search_term: searchKeyword,
+          result_count: 0
+        });
       } else {
         showMessage('유효하지 않은 입력입니다.');
       }
@@ -185,6 +196,18 @@ function App() {
   const showMessage = (msg) => {
     setMessage(msg);
     setTimeout(() => setMessage(''), 2300);
+  };
+
+  const copyUrl = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url)
+      .then(() => {
+        showMessage('주소가 복사되었습니다.');
+        trackEvent('share_deck', {
+          deck_url: window.location.search
+        });
+      })
+      .catch(() => showMessage('복사 실패'));
   };
 
   const addCardToDeck = async (imageUrl, frameType, name) => {
@@ -240,6 +263,10 @@ function App() {
       const newMainDeck = sortCards([...mainDeck, cardData]);
       setMainDeck(newMainDeck);
       saveUrl(newMainDeck, extraDeck);
+      trackEvent('add_to_deck', {
+        card_name: name,
+        deck_type: ['link', 'fusion', 'synchro', 'xyz', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum'].includes(frameType) ? 'extra' : 'main'
+      });
     }
   };
 
@@ -248,12 +275,20 @@ function App() {
       setMainDeck(prevDeck => {
         const newDeck = sortCards([...prevDeck.slice(0, index), ...prevDeck.slice(index + 1)]);
         saveUrl(newDeck, extraDeck);
+        trackEvent('remove_from_deck', {
+          card_name: prevDeck[index].name,
+          deck_type: 'main'
+        });
         return newDeck;
       });
     } else {
       setExtraDeck(prevDeck => {
         const newDeck = sortCards([...prevDeck.slice(0, index), ...prevDeck.slice(index + 1)]);
         saveUrl(mainDeck, newDeck);
+        trackEvent('remove_from_deck', {
+          card_name: prevDeck[index].name,
+          deck_type: 'extra'
+        });
         return newDeck;
       });
     }
@@ -268,6 +303,9 @@ function App() {
       .then(data => {
         setCardDetail(data);
         setIsExpanded(true);
+        trackEvent('view_card_detail', {
+          card_name: data.name
+        });
       })
       .catch(error => console.error('There has been a problem with your fetch operation:', error));
   };
@@ -586,8 +624,8 @@ const requestOrientationPermission = useCallback(async () => {
     <div className={`menu-overlay ${isMenuOpen ? 'open' : ''}`} onClick={() => setIsMenuOpen(false)}></div>
     <div className={`side-menu ${isMenuOpen ? 'open' : ''}`}>
       <div className="board-switch">
-        <button onClick={() => { setActiveBoard('limit'); setIsMenuOpen(false); }}>리미트 레귤레이션</button>
-        <button onClick={() => { setActiveBoard('deck'); setIsMenuOpen(false); }}>덱 빌딩</button>
+        <button onClick={() => { setActiveBoard('limit'); setIsMenuOpen(false);  trackEvent('view_limit_board', { board: 'limit' });}}>리미트 레귤레이션</button>
+        <button onClick={() => { setActiveBoard('deck'); setIsMenuOpen(false); trackEvent('switch_board', { board: 'deck' });}}>덱 빌딩</button>
       </div>
     </div>
     {isMobile && activeBoard === 'deck' && (
@@ -657,6 +695,13 @@ const requestOrientationPermission = useCallback(async () => {
         onClick={() => setEffectsEnabled(prev => !prev)}
       >
         {effectsEnabled ? '이펙트' : '이펙트'}
+      </button>
+      <button
+        id="copyButton"
+        className="action-button"
+        onClick={copyUrl}
+      >
+        URL 복사
       </button>
      <div
       ref={expandedOverlayRef}
