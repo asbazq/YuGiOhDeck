@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { trackEvent } from './utils/analytics';
+import { trackEvent, sendPageView } from './utils/analytics';
 import './styles/App.css';
 import './styles/DeckCard.css';
 import './styles/SearchBar.css';
@@ -87,20 +87,8 @@ function App() {
     }
   }, [activeBoard]);
 
-   useEffect(() => {
-    const script = document.createElement("script");
-    script.async = true;
-    script.src = "https://www.googletagmanager.com/gtag/js?id=G-HL4HGTHXLN";
-    document.head.appendChild(script);
-
-    const inlineScript = document.createElement("script");
-    inlineScript.innerHTML = `
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-      gtag('config', 'G-HL4HGTHXLN');
-    `;
-    document.head.appendChild(inlineScript);
+  useEffect(() => {
+    sendPageView(window.location.pathname);
   }, []);
 
   const cardRefs = useRef([]);
@@ -185,7 +173,7 @@ function App() {
         searchCards(searchKeyword, frameType, 0);
         trackEvent('search', {
           search_term: searchKeyword,
-          result_count: 0
+          result_count: isLoading ? 0 : searchResults.length
         });
       } else {
         showMessage('유효하지 않은 입력입니다.');
@@ -198,17 +186,47 @@ function App() {
     setTimeout(() => setMessage(''), 2300);
   };
 
-  const copyUrl = () => {
-    const url = window.location.href;
+const copyUrl = () => {
+  const url = window.location.href;
+
+  if (navigator.clipboard && window.isSecureContext) {
+    // HTTPS/localhost 환경
     navigator.clipboard.writeText(url)
       .then(() => {
         showMessage('주소가 복사되었습니다.');
-        trackEvent('share_deck', {
-          deck_url: window.location.search
-        });
+        trackEvent('share_deck', { deck_url: window.location.search });
       })
       .catch(() => showMessage('복사 실패'));
-  };
+  } else {
+    // HTTP 환경 폴백
+    const textarea = document.createElement('textarea');
+    textarea.value = url;
+    // 화면에 보이지 않게
+    textarea.style.position = 'fixed';
+    textarea.style.top = '0';
+    textarea.style.left = '0';
+    textarea.style.width = '1px';
+    textarea.style.height = '1px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+
+    textarea.select();
+    try {
+      const successful = document.execCommand('copy');
+      if (successful) {
+        showMessage('주소가 복사되었습니다.');
+        trackEvent('share_deck', { deck_url: window.location.search });
+      } else {
+        throw new Error('execCommand 실패');
+      }
+    } catch (err) {
+      console.error('Clipboard 폴백 에러:', err);
+      showMessage('복사 실패');
+    }
+
+    document.body.removeChild(textarea);
+  }
+};
 
   const addCardToDeck = async (imageUrl, frameType, name) => {
     const response = await fetch(`/cards/cardinfo?cardName=${encodeURIComponent(name)}`);
@@ -255,6 +273,10 @@ function App() {
       const newExtraDeck = sortCards([...extraDeck, cardData]);
       setExtraDeck(newExtraDeck);
       saveUrl(mainDeck, newExtraDeck);
+      trackEvent('add_to_deck', {
+        card_name: name,
+        deck_type: ['link', 'fusion', 'synchro', 'xyz', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum'].includes(frameType) ? 'extra' : 'main'
+      });
     } else {
       if (mainDeck.length >= 60) {
         showMessage('메인 덱은 60장까지만 가능합니다.');
