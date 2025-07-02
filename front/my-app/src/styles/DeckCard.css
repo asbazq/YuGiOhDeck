@@ -173,10 +173,10 @@
 
 .card-container.expanded {
     transition: transform 0.3s ease-out, top 0.3s ease-out, left 0.3s ease-out;
-}
-
-@media (min-width: 769px) {
-    .card-container.expanded:active {
-        transform: scale(2.8);
-    }
+    touch-action: none;
+    -ms-touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    -webkit-user-drag: none;
 }

@@ -396,7 +396,10 @@ const copyUrl = () => {
       setIsExpanded(true);
     } else {
       if (expandedIndexRef.current !== index) return;
-      if (isMobile) return;
+      if (isMobile) {
+        handleOverlayClick();
+        return;
+      }
       if (expandedOverlayRef.current) {
         expandedOverlayRef.current.style.display = 'none';
         
@@ -514,11 +517,11 @@ const requestOrientationPermission = useCallback(async () => {
       }
     }
 
-    if (!granted) {
-      granted = true; // assume permission not required (Android)
+    if (granted) {
+      setOrientationPermissionGranted(true);
+    } else {
+      orientationRequestRef.current = false;
     }
-
-    if (granted) setOrientationPermissionGranted(true);
   }, [orientationPermissionGranted]);
 
   useEffect(() => {
@@ -561,11 +564,11 @@ const requestOrientationPermission = useCallback(async () => {
     if (isAnimatingRef.current || expandedIndexRef.current === null) return;
     const card = cardRefs.current[expandedIndexRef.current];
     if (!card) return;
-  if (expandedOverlayRef.current) {
-    expandedOverlayRef.current.style.display = 'none';
-  }
+    if (expandedOverlayRef.current) {
+      expandedOverlayRef.current.style.display = 'none';
+    }
 
- const origTop = parseFloat(card.dataset.origTop || 0);
+    const origTop = parseFloat(card.dataset.origTop || 0);
     const origLeft = parseFloat(card.dataset.origLeft || 0);
     const origScrollY = parseFloat(card.dataset.origScrollY || 0);
     const finalTop = origTop + (origScrollY - window.scrollY);
@@ -639,11 +642,13 @@ const requestOrientationPermission = useCallback(async () => {
   }, []);
 
   useEffect(() => {
-    if (!isMobile || !window.DeviceOrientationEvent || !orientationPermissionGranted) return;
+    if (!isMobile || !window.DeviceOrientationEvent || !orientationPermissionGranted || !effectsEnabled) return;
 
     const handleOrientation = (event) => {
       orientationRef.current = { beta: event.beta || 0, gamma: event.gamma || 0 };
-      const index = activeTouchIndexRef.current;
+      const index = expandedIndexRef.current !== null
+        ? expandedIndexRef.current
+        : activeTouchIndexRef.current;
       if (index === null) return;
       const card = cardRefs.current[index];
       if (!card) return;
@@ -658,7 +663,7 @@ const requestOrientationPermission = useCallback(async () => {
 
     window.addEventListener('deviceorientation', handleOrientation);
     return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, [isMobile, orientationPermissionGranted]);
+  }, [isMobile, orientationPermissionGranted, effectsEnabled]);
 
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -760,6 +765,15 @@ const requestOrientationPermission = useCallback(async () => {
       >
         URL 복사
       </button>
+      {!orientationPermissionGranted && (
+        <button
+          id="orientationButton"
+          className="action-button"
+          onClick={requestOrientationPermission}
+        >
+          센서 허용
+        </button>
+      )}
      <div
       ref={expandedOverlayRef}
       className="expanded-overlay"

@@ -64,18 +64,18 @@ public class CardService {
     public void setup() {
         // WebDriverManager를 사용하여 ChromeDriver를 자동으로 관리
         // WebDriverManager.chromedriver().setup();
-        WebDriverManager.chromedriver().browserVersion("127.0.6533.120").setup();
-        // System.setProperty("selenium.manager.disabled", "true");
+        // WebDriverManager.chromedriver().browserVersion("127.0.6533.120").setup();
+        System.setProperty("selenium.manager.disabled", "true");
         // 컨테이너에 apk로 설치된 크로미움/크롬드라이버 경로
-        // String chromeBin    = System.getenv("WEB_DRIVER_CHROME_BIN");
-        // String chromeDriver = System.getenv("WEB_DRIVER_CHROME_DRIVER");
+        String chromeBin    = System.getenv("WEB_DRIVER_CHROME_BIN");
+        String chromeDriver = System.getenv("WEB_DRIVER_CHROME_DRIVER");
 
         // 드라이버 시스템 프로퍼티에 경로 지정
-        // System.setProperty("webdriver.chrome.driver", chromeDriver);
+        System.setProperty("webdriver.chrome.driver", chromeDriver);
 
         // 브라우저를 headless 모드로 설정
         ChromeOptions options = new ChromeOptions();
-        // options.setBinary(chromeBin);
+        options.setBinary(chromeBin);
         options.addArguments("--headless"); // 브라우저 창을 표시하지 않음
         options.addArguments("--no-sandbox");
         options.addArguments("--disable-dev-shm-usage");

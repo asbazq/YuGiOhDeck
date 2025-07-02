@@ -17,6 +17,7 @@ function DeckCard({
     <div className="deck-card-wrapper">
       <div
         className="card-container"
+        draggable="false"
         onClick={() => onClick(card.name, index)}
         onContextMenu={onContextMenu}
         onMouseMove={e => onMouseMove(e, index)}

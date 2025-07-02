@@ -80,3 +80,10 @@ button#copyButton{
     z-index:4;
 }
 
+button#orientationButton{
+    position:fixed;
+    bottom:20px;
+    right:320px;
+    z-index:4;
+}
+
