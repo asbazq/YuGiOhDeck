@@ -3,10 +3,9 @@ import { createPortal } from 'react-dom';
 import SearchResultItem from './SearchResultItem';
 import '../styles/HoverEffect.css';
 
-function SearchResults({ results, addCardToDeck }) {
+function SearchResults({ results, addCardToDeck, onLoadMore }) {
   const [hoverInfo, setHoverInfo] = useState(null);
   const cacheRef = useRef({});
-  const containerRef = useRef(null);
 
   const handleHover = useCallback(async (name, el, pointerType) => {
     if (pointerType === 'touch' || window.matchMedia('(hover: none)').matches) {
@@ -44,7 +43,7 @@ function SearchResults({ results, addCardToDeck }) {
   }, []);
 
   return (
-     <div className="search-results-wrapper" ref={containerRef}>
+      <div className="search-results-wrapper">
       {hoverInfo &&
         createPortal(
           <div

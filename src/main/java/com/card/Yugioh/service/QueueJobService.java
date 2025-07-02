@@ -139,10 +139,4 @@ public class QueueJobService {
         Long v = redis.opsForZSet().size(key);
         return v == null ? 0L : v;
     }
-
-    private String statusJson(String qid) {
-        long w = redis.opsForZSet().size(WAITING_PREFIX + qid);
-        long r = redis.opsForZSet().size(RUNNING_PREFIX + qid);
-        return String.format("{\"queue\":\"%s\",\"waiting\":%d,\"running\":%d}", qid, w, r);
-    }
 }

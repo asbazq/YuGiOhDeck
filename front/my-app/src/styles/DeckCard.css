@@ -169,3 +169,14 @@
         height: 143px;
     }
 }
+
+
+.card-container.expanded {
+    transition: transform 0.3s ease-out, top 0.3s ease-out, left 0.3s ease-out;
+}
+
+@media (min-width: 769px) {
+    .card-container.expanded:active {
+        transform: scale(2.8);
+    }
+}

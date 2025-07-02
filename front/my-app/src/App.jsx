@@ -53,6 +53,7 @@ function App() {
   const longPressTimeoutRef = useRef(null);
   const [orientationPermissionGranted, setOrientationPermissionGranted] = useState(false);
   const orientationRequestRef = useRef(false);
+  const searchPanelRef = useRef(null);
 
   useEffect(() => {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -88,6 +89,17 @@ function App() {
   }, [activeBoard]);
 
   useEffect(() => {
+    const leftContainer = document.querySelector('.left-container');
+    if (isMobile && isSearchOpen) {
+      document.body.style.overflow = 'hidden';
+      if (leftContainer) leftContainer.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      if (leftContainer) leftContainer.style.overflow = '';
+    }
+  }, [isMobile, isSearchOpen]);
+  
+  useEffect(() => {
     sendPageView(window.location.pathname);
   }, []);
 
@@ -100,7 +112,7 @@ function App() {
   const searchCards = useCallback(async (keyWord, frame, page) => {
     if (!hasMoreResults || isLoading) return;
 
-    const size = isMobile ? 15 : 25;
+    const size = isMobile ? 18 : 25;
     setIsLoading(true);
     try {
       const response = await fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&frameType=${encodeURIComponent(frame)}&page=${page}&size=${size}`);
@@ -185,6 +197,18 @@ function App() {
   const showMessage = (msg) => {
     setMessage(msg);
     setTimeout(() => setMessage(''), 2300);
+  };
+
+  const handlePanelScroll = () => {
+    const el = searchPanelRef.current;
+    if (
+      el &&
+      hasMoreResults &&
+      !isLoading &&
+      el.scrollTop + el.clientHeight >= el.scrollHeight - 1
+    ) {
+      searchCards(searchKeyword, frameType, currentPage + 1);
+    }
   };
 
 const copyUrl = () => {
@@ -670,7 +694,11 @@ const requestOrientationPermission = useCallback(async () => {
           className={`search-overlay ${isSearchOpen ? 'open' : ''}`}
           onClick={() => setIsSearchOpen(false)}
         ></div>
-        <div className={`search-panel ${isSearchOpen ? 'open' : ''}`}>
+        <div
+          className={`search-panel ${isSearchOpen ? 'open' : ''}`}
+          ref={searchPanelRef}
+          onScroll={handlePanelScroll}
+        >
           <SearchBar
             searchKeyword={searchKeyword}
             onChange={setSearchKeyword}
