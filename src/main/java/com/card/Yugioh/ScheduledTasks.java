@@ -28,7 +28,7 @@ public class ScheduledTasks {
     public void onStartup() {
         log.info("card fetch start");
         fetchApiData();
-        fetchLimtData();
+        fetchLimitData();
     }
 
     // 2주마다 실행되는 스케줄러 설정 (Cron 표현식 사용)
@@ -40,11 +40,17 @@ public class ScheduledTasks {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        cardService.crawlAll();
+        
     }
     // 초 분 시 일 월 요일
     @Scheduled(cron = "0 0 3 * * MON")
-    public void fetchLimtData() {
+    public void fetchLimitData() {
         cardService.limitCrawl();
+    }
+
+    // 초 분 시 일 월 요일
+    @Scheduled(cron = "0 0 3 * * MON")
+    public void fetchKorData() {
+        cardService.crawlAll();
     }
 }

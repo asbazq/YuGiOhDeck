@@ -100,9 +100,10 @@ function App() {
   const searchCards = useCallback(async (keyWord, frame, page) => {
     if (!hasMoreResults || isLoading) return;
 
+    const size = isMobile ? 15 : 25;
     setIsLoading(true);
     try {
-      const response = await fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&frameType=${encodeURIComponent(frame)}&page=${page}&size=25`);
+      const response = await fetch(`/cards/search?keyWord=${encodeURIComponent(keyWord)}&frameType=${encodeURIComponent(frame)}&page=${page}&size=${size}`);
       if (!response.ok) throw new Error('Network response was not ok');
       const data = await response.json();
 
@@ -127,7 +128,7 @@ function App() {
     } finally {
       setIsLoading(false);
     }
-  }, [hasMoreResults, isLoading]);
+  }, [hasMoreResults, isLoading, isMobile]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -371,6 +372,7 @@ const copyUrl = () => {
       setIsExpanded(true);
     } else {
       if (expandedIndexRef.current !== index) return;
+      if (isMobile) return;
       if (expandedOverlayRef.current) {
         expandedOverlayRef.current.style.display = 'none';
         
@@ -521,7 +523,12 @@ const requestOrientationPermission = useCallback(async () => {
   const handleTouchEnd = () => {
     clearTimeout(longPressTimeoutRef.current);
     if (activeTouchIndexRef.current !== null) {
-      handleMouseOut(activeTouchIndexRef.current);
+      const index = activeTouchIndexRef.current;
+      setTimeout(() => {
+        if (expandedIndexRef.current === null) {
+          handleMouseOut(index);
+        }
+      }, 0);
     }
     activeTouchIndexRef.current = null;
   };

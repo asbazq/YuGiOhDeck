@@ -35,6 +35,12 @@ html,body{
   width:20%;
 }
 
+@media (max-width: 768px) {
+  .left-container {
+    padding-bottom: 100px;
+  }
+}
+
 /* ---------- TITLES & LABELS ---------- */
 #title{
     font-size:25px;

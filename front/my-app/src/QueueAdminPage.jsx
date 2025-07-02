@@ -45,7 +45,34 @@ export default function QueueAdminPage() {
     }
   };
 
-  useEffect(() => { loadConfig(); }, [qid]);
+  const fetchApiData = async () => {
+    try {
+      await axios.post('/api/admin/queue/fetchApiData');
+      setMessage('API 데이터 가져오기 시작');
+    } catch {
+      setMessage('API 데이터 가져오기 실패');
+    }
+  };
+
+  const fetchLimitData = async () => {
+    try {
+      await axios.post('/api/admin/queue/fetchLimitData');
+      setMessage('리밋 데이터 가져오기 시작');
+    } catch {
+      setMessage('리밋 데이터 가져오기 실패');
+    }
+  };
+
+  const fetchKorData = async () => {
+    try {
+      await axios.post('/api/admin/queue/fetchKorData');
+      setMessage('한글 데이터 가져오기 시작');
+    } catch {
+      setMessage('한글 데이터 가져오기 실패');
+    }
+  };
+
+useEffect(() => { loadConfig(); }, [qid]);
 
 return (
   <div className="pixel-admin-wrapper">
@@ -105,13 +132,24 @@ return (
       <button className="pixel-btn" onClick={updateConfig}>
         저장
       </button>
-
       {message && (
         <div className="pixel-message">
           {message}
         </div>
       )}
     </div>
+         <div className="fetch-button-container">
+          <h1>패치</h1>
+        <button className="pixel-btn" onClick={fetchApiData}>
+          Api
+        </button>
+        <button className="pixel-btn" onClick={fetchLimitData}>
+          리미트 레귤레이션
+        </button>
+        <button className="pixel-btn" onClick={fetchKorData}>
+          한글
+        </button>
+      </div>
     </div>
   );
 }

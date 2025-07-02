@@ -33,7 +33,6 @@ public class QueueJobService {
     public void expire() {
         redis.keys(RUNNING_PREFIX + "*").forEach(runKey -> {
             String qid = runKey.substring(RUNNING_PREFIX.length());
-            String waitKey = WAITING_PREFIX + qid;
             // log.info("qid = {} waitKey = {}", qid, waitKey);
             long cutoff = System.currentTimeMillis()
                            - QueueConfig.from(redis.opsForHash().entries("config:" + qid))

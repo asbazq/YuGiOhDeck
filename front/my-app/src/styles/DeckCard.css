@@ -59,6 +59,7 @@
     font-size: 0.6em;
     margin: 2px 0 8px 0;
     width: 100%;
+    line-height: 1.2;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;

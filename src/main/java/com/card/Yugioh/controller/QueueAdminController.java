@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
+import com.card.Yugioh.ScheduledTasks;
 import com.card.Yugioh.security.QueueConfig;
 
 import java.util.Map;
@@ -15,6 +16,7 @@ import java.util.Map;
 public class QueueAdminController {
 
     private final RedisTemplate<String, String> redis;
+    private final ScheduledTasks tasks;
 
     /** 현재 설정 조회 */
     @GetMapping("/{qid}")
@@ -40,5 +42,20 @@ public class QueueAdminController {
         if (maxRunning != null) {
             redis.opsForHash().put("config:global", "maxRunning", maxRunning.toString());
         }
+    }
+
+    @PostMapping("/fetchApiData")
+    public void fetchApiData() {
+        tasks.fetchApiData();
+    }
+
+    @PostMapping("/fetchLimitData")
+    public void fetchLimitData() {
+        tasks.fetchLimitData();
+    }
+
+    @PostMapping("/fetchKorData")
+    public void fetchKorData() {
+        tasks.fetchKorData();
     }
 }

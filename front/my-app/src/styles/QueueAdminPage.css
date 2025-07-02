@@ -63,7 +63,7 @@
 }
 
 /* ─── 버튼 ─── */
-.pixel-admin .pixel-btn {
+.pixel-btn {
   padding: 8px 16px;
   margin-right: 8px;
   background: #3a5cda;
@@ -79,10 +79,11 @@
   transition: transform .05s;
   image-rendering: pixelated;
 }
-.pixel-admin .pixel-btn:hover {
+
+.pixel-btn:hover {
   background: #2d4373;
 }
-.pixel-admin .pixel-btn:active {
+.pixel-btn:active {
   transform: translateY(2px);
   box-shadow:
     inset 4px 4px 0 #2742a0,
@@ -90,8 +91,26 @@
     2px 2px 0 #000;
 }
 
+.fetch-button-container {
+  font-family: 'NeoDunggeunmo', sans-serif;
+  background: #fff;
+  padding: 24px;
+  max-width: 400px;
+  width: 100%;
+  border: 4px solid #000;
+  box-shadow:
+    inset 4px 4px 0 #7d7d7d,
+    inset -4px -4px 0 #7d7d7d,
+    8px 8px 0 #000;
+  box-sizing: border-box;
+  margin-left: 100px;
+  display: flex;
+  gap: 12px;
+}
+
+
 /* ─── 메시지 ─── */
-.pixel-admin .pixel-message {
+.pixel-message {
   display: inline-block;
   margin-top: 12px;
   background: #ffcc00;
