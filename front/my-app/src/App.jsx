@@ -15,6 +15,7 @@ import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
 import DeckCard from './components/DeckCard';
 import LimitBoard from './components/LimitBoard';
+import OrientationModal from './components/OrientationModal';
 import Card from './classes/Card';
 import { sortCards, saveUrl } from './common/deckUtils';
 import alertCard from './img/black-magician-girl-card-8bit.png';
@@ -48,10 +49,12 @@ function App() {
   // 모바일 여부 및 모바일 검색창 오픈 여부
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchButtonTop, setSearchButtonTop] = useState(190);
   const orientationRef = useRef({ beta: 0, gamma: 0 });
   const activeTouchIndexRef = useRef(null);
   const longPressTimeoutRef = useRef(null);
   const [orientationPermissionGranted, setOrientationPermissionGranted] = useState(false);
+  const [isOrientationModalOpen, setIsOrientationModalOpen] = useState(false);
   const orientationRequestRef = useRef(false);
   const searchPanelRef = useRef(null);
 
@@ -87,6 +90,20 @@ function App() {
       setIsSearchOpen(false);
     }
   }, [activeBoard]);
+
+  useEffect(() => {
+    const handleScrollBtn = () => {
+      const offset = 190 - window.scrollY;
+      setSearchButtonTop(offset > 20 ? offset : 20);
+    };
+    if (isMobile && activeBoard === 'deck') {
+      handleScrollBtn();
+      window.addEventListener('scroll', handleScrollBtn);
+    } else {
+      setSearchButtonTop(190);
+    }
+    return () => window.removeEventListener('scroll', handleScrollBtn);
+  }, [isMobile, activeBoard]);
 
   useEffect(() => {
     const leftContainer = document.querySelector('.left-container');
@@ -550,12 +567,7 @@ const requestOrientationPermission = useCallback(async () => {
   const handleTouchEnd = () => {
     clearTimeout(longPressTimeoutRef.current);
     if (activeTouchIndexRef.current !== null) {
-      const index = activeTouchIndexRef.current;
-      setTimeout(() => {
-        if (expandedIndexRef.current === null) {
-          handleMouseOut(index);
-        }
-      }, 0);
+      handleMouseOut(activeTouchIndexRef.current);
     }
     activeTouchIndexRef.current = null;
   };
@@ -656,14 +668,14 @@ const requestOrientationPermission = useCallback(async () => {
       const height = card.clientHeight;
       const gamma = Math.max(-45, Math.min(45, orientationRef.current.gamma));
       const beta = Math.max(-45, Math.min(45, orientationRef.current.beta));
-      const x = ((gamma + 45) / 90) * width;
+      const x = ((gamma + 45) / 90) * width; 
       const y = ((beta + 45) / 90) * height;
       applyCardEffect(x, y, index);
     };
 
     window.addEventListener('deviceorientation', handleOrientation);
     return () => window.removeEventListener('deviceorientation', handleOrientation);
-  }, [isMobile, orientationPermissionGranted, effectsEnabled]);
+  }, [isMobile, orientationPermissionGranted, effectsEnabled, isExpanded]);
 
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -690,6 +702,7 @@ const requestOrientationPermission = useCallback(async () => {
       <>
         <button
           className="search-button"
+          style={{ top: `${searchButtonTop}px` }}
           onClick={() => setIsSearchOpen(true)}
           aria-label="검색창 열기"
         >
@@ -766,13 +779,20 @@ const requestOrientationPermission = useCallback(async () => {
         URL 복사
       </button>
       {!orientationPermissionGranted && (
-        <button
-          id="orientationButton"
-          className="action-button"
-          onClick={requestOrientationPermission}
-        >
-          센서 허용
-        </button>
+        <>
+          <button
+            id="orientationButton"
+            className="action-button"
+            onClick={() => setIsOrientationModalOpen(true)}
+          >
+            센서 허용
+          </button>
+          <OrientationModal
+            open={isOrientationModalOpen}
+            onAllow={() => { requestOrientationPermission(); setIsOrientationModalOpen(false); }}
+            onClose={() => setIsOrientationModalOpen(false)}
+          />
+        </>
       )}
      <div
       ref={expandedOverlayRef}

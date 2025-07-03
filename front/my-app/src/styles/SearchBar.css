@@ -1,11 +1,17 @@
+.search-wrapper {
+  position: sticky;
+  margin-top: 10px;
+  top: 0px;            /* 뷰포트 최상단에서 20px 아래에 고정 */
+  display: flex;
+  justify-content: center;
+  z-index: 5;
+}
+
 .search-container {
-    position: absolute;
-    top: 20px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    display: flex;
-    gap: 8px;
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  gap: 8px;
 }
 
 .search-container input {
@@ -22,10 +28,6 @@
     transition: border-color 0.3s;
 }
 
-.search-container {
-  position: relative;
-}
-
 .search-container select {
   width: 30%;
   padding: 8px 16px;                
@@ -36,25 +38,6 @@
   /* 두꺼운 픽셀 테두리 */
   border: 3px solid #000;
   border-radius: 0;
-  
-  /* 기본 화살표 감추기 */
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  cursor: pointer;
-}
-
-/* 4) 화살표 아이콘 추가 */
-.search-container::after {
-  content: '▼';
-  position: absolute;
-  top: 50%;
-  left: 90px;                     /* 테두리(4px)+패딩(8px) 고려 */
-  transform: translateY(-50%);
-  font-family: 'NeoDunggeunmo', sans-serif;
-  font-size: 14px;
-  color: #000;
-  pointer-events: none;
 }
 
 

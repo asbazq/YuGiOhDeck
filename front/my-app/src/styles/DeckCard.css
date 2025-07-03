@@ -169,14 +169,3 @@
         height: 143px;
     }
 }
-
-
-.card-container.expanded {
-    transition: transform 0.3s ease-out, top 0.3s ease-out, left 0.3s ease-out;
-    touch-action: none;
-    -ms-touch-action: none;
-    user-select: none;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-    -webkit-user-drag: none;
-}

@@ -35,7 +35,7 @@
   display: block;
 }
 .search-button {
-  position: absolute;
+  position: fixed;
   top: 190px;
   right: 45px;
   z-index: 4;

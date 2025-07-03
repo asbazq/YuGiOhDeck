@@ -84,3 +84,8 @@ html,body{
 .description {
   color: #fff;
 }
+
+.right-container .search-container {
+  position: sticky;
+  top: 20px;
+}
