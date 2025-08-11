@@ -5,6 +5,8 @@ import App from './App';
 import QueueAdminPage from './QueueAdminPage';
 import QueueApp from './components/QueueApp';
 import reportWebVitals from './reportWebVitals';
+import LimitPage from './components/LimitPage';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
@@ -13,9 +15,15 @@ const isAdmin = window.location.pathname.startsWith('/admin/queue');
 const app = isAdmin ? (
   <QueueAdminPage />
 ) : (
-  <QueueApp>
-    <App />
-  </QueueApp>
+  <BrowserRouter>
+    <QueueApp>
+      <Routes>
+        <Route path="/admin/queue/:qid?" element={<QueueAdminPage />} />
+        <Route path="/limit" element={<QueueApp><LimitPage /></QueueApp>} />
+        <Route path="/" element={<QueueApp><App /></QueueApp>} />
+      </Routes>
+    </QueueApp>
+  </BrowserRouter>
 );
 
 root.render(

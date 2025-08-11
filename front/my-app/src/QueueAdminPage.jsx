@@ -1,20 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, } from 'react';
 import axios from 'axios';
+import { useParams } from 'react-router-dom';
 import './styles/QueueAdminPage.css'
 
 export default function QueueAdminPage() {
-  const initialQid = (() => {
-    const m = window.location.pathname.match(/\/admin\/queue\/(.+)$/);
-    return m ? decodeURIComponent(m[1]) : 'main';
-  })();
-
-  const [qid, setQid] = useState(initialQid);
+  const { qid: routeQid } = useParams();
+  const [qid, setQid] = useState(routeQid || 'main');
+  useEffect(() => { setQid(routeQid || 'main'); }, [routeQid]);
   const [throughput, setThroughput] = useState('');
   const [ttl, setTtl] = useState('');
   const [maxRunning, setMaxRunning] = useState('');
   const [message, setMessage] = useState('');
 
-  const loadConfig = async () => {
+  const loadConfig = useCallback(async () => {
     try {
       const { data } = await axios.get(`/api/admin/queue/${encodeURIComponent(qid)}`);
       setThroughput(data.throughput ?? '');
@@ -24,7 +22,7 @@ export default function QueueAdminPage() {
     } catch {
       setMessage('설정을 불러오지 못했습니다.');
     }
-  };
+  }, [qid]);
 
   const updateConfig = async () => {
     try {

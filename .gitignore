@@ -40,3 +40,15 @@ out/
 ### VS Code ###
 .vscode/
 src/main/resources/application.properties
+
+# Node dependencies
+node_modules/
+
+# npm cache
+.npm-cache/
+.npm/
+pako.tgz
+
+
+# Spring Boot public resources
+src/main/resources/public/

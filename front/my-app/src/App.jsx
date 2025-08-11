@@ -5,7 +5,7 @@ import './styles/DeckCard.css';
 import './styles/SearchBar.css';
 import './styles/SearchResultItem.css';
 import './styles/Message.css'
-import './styles/LimitBoard.css'
+// import './styles/LimitBoard.css'
 import './styles/Menu.css'
 import './styles/Button.css'
 import './styles/MobileSearch.css';
@@ -14,12 +14,13 @@ import pako from 'pako';
 import SearchBar from './components/SearchBar';
 import SearchResults from './components/SearchResults';
 import DeckCard from './components/DeckCard';
-import LimitBoard from './components/LimitBoard';
+// import LimitBoard from './components/LimitBoard';
 import OrientationModal from './components/OrientationModal';
 import Card from './classes/Card';
 import { sortCards, saveUrl } from './common/deckUtils';
 import alertCard from './img/black-magician-girl-card-8bit.png';
 import konamiGif from './img/1750263964.gif';
+import { useNavigate } from 'react-router-dom';
 
 
 
@@ -45,7 +46,7 @@ function App() {
   // 카드 회전/광택 효과 on/off
   const [effectsEnabled, setEffectsEnabled] = useState(true);
   // 'deck' or 'limit'
-  const [activeBoard, setActiveBoard] = useState('deck');
+  // const [activeBoard, setActiveBoard] = useState('deck');
   // 모바일 여부 및 모바일 검색창 오픈 여부
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -57,6 +58,7 @@ function App() {
   const [isOrientationModalOpen, setIsOrientationModalOpen] = useState(false);
   const orientationRequestRef = useRef(false);
   const searchPanelRef = useRef(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -85,25 +87,25 @@ function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  useEffect(() => {
-    if (activeBoard !== 'deck') {
-      setIsSearchOpen(false);
-    }
-  }, [activeBoard]);
+  // useEffect(() => {
+  //   if (activeBoard !== 'deck') {
+  //     setIsSearchOpen(false);
+  //   }
+  // }, [activeBoard]);
 
   useEffect(() => {
     const handleScrollBtn = () => {
       const offset = 190 - window.scrollY;
       setSearchButtonTop(offset > 20 ? offset : 20);
     };
-    if (isMobile && activeBoard === 'deck') {
+    if (isMobile) {
       handleScrollBtn();
       window.addEventListener('scroll', handleScrollBtn);
     } else {
       setSearchButtonTop(190);
     }
     return () => window.removeEventListener('scroll', handleScrollBtn);
-  }, [isMobile, activeBoard]);
+  }, [isMobile]);
 
   useEffect(() => {
     const leftContainer = document.querySelector('.left-container');
@@ -193,7 +195,7 @@ function App() {
 
     window.addEventListener('scroll', handleScroll);
     return () => window.removeEventListener('scroll', handleScroll);
-  }, [searchCards, searchKeyword, currentPage, hasMoreResults, isLoading]);
+  }, [searchCards, searchKeyword, frameType, currentPage, hasMoreResults, isLoading]);
 
   const handleSearch = (event) => {
     if (event.key === 'Enter') {
@@ -450,8 +452,9 @@ const copyUrl = () => {
     }
   };
 
-  const applyCardEffect = (x, y, index) => {
+  const applyCardEffect = useCallback((x, y, index) => {
     if (!cardRefs.current[index]) return;
+    if (isMobile && !isExpanded) return;
     const width = cardRefs.current[index].clientWidth;
     const height = cardRefs.current[index].clientHeight;
 
@@ -482,7 +485,7 @@ const copyUrl = () => {
         cardRefs.current[index].style.transform = '';
       }
     }
-  };
+  }, [isMobile, isExpanded, effectsEnabled]);
 
   const handleMouseMove = (e, index) => {
     if (isAnimatingRef.current) return;
@@ -694,11 +697,12 @@ const requestOrientationPermission = useCallback(async () => {
     <div className={`menu-overlay ${isMenuOpen ? 'open' : ''}`} onClick={() => setIsMenuOpen(false)}></div>
     <div className={`side-menu ${isMenuOpen ? 'open' : ''}`}>
       <div className="board-switch">
-        <button onClick={() => { setActiveBoard('limit'); setIsMenuOpen(false);  trackEvent('view_limit_board', { board: 'limit' });}}>리미트 레귤레이션</button>
-        <button onClick={() => { setActiveBoard('deck'); setIsMenuOpen(false); trackEvent('switch_board', { board: 'deck' });}}>덱 빌딩</button>
+        <button onClick={() => { navigate('/limit'); setIsMenuOpen(false); trackEvent('view_limit_board', { board: 'limit' });}}>리미트 레귤레이션</button>
+        <button onClick={() => { navigate('/'); setIsMenuOpen(false); trackEvent('switch_board', { board: 'deck' });}}>덱 빌딩</button>
+        <button onClick={() => { navigate('/admin/queue'); setIsMenuOpen(false); trackEvent('view_admin_page', { board: 'admin' });}}>관리자</button>
       </div>
     </div>
-    {isMobile && activeBoard === 'deck' && (
+    {isMobile && (
       <>
         <button
           className="search-button"
@@ -751,7 +755,6 @@ const requestOrientationPermission = useCallback(async () => {
           className={`msgImg${message === 'Konami code!' ? ' konami' : ''}`}
         />
       </div>
-    {activeBoard === 'deck' && (
     <div className="container">
       <div className="contact-info">
       </div>
@@ -887,12 +890,6 @@ const requestOrientationPermission = useCallback(async () => {
         </div>
       )}
     </div>
-   )}
-    {activeBoard === 'limit' && (
-      <div className="container">
-       <LimitBoard showMessage={showMessage} />
-      </div>
-    )}
     </>
   );
 }

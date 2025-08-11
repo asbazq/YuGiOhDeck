@@ -29,7 +29,6 @@ import com.card.Yugioh.repository.CardRepository;
 import com.card.Yugioh.repository.LimitRegulationRepository;
 
 import io.github.bonigarcia.wdm.WebDriverManager;
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -50,7 +49,6 @@ public class CardService {
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
     private final LimitRegulationRepository limitRegulationRepository;
-    private WebDriver driver;
     // private final AmazonS3 s3Client;
     // private String bucket;
 
@@ -60,8 +58,7 @@ public class CardService {
         "normal_pendulum"
     );
 
-    @PostConstruct
-    public void setup() {
+    public WebDriver setup() {
         // WebDriverManager를 사용하여 ChromeDriver를 자동으로 관리
         // WebDriverManager.chromedriver().setup();
         // WebDriverManager.chromedriver().browserVersion("127.0.6533.120").setup();
@@ -76,11 +73,12 @@ public class CardService {
         // 브라우저를 headless 모드로 설정
         ChromeOptions options = new ChromeOptions();
         options.setBinary(chromeBin);
-        options.addArguments("--headless"); // 브라우저 창을 표시하지 않음
-        options.addArguments("--no-sandbox");
-        options.addArguments("--disable-dev-shm-usage");
+        options.addArguments("--headless", // 브라우저 창을 표시하지 않음
+                        "--no-sandbox", 
+                        "--disable-dev-shm-usage"
+                        ); 
 
-        driver = new ChromeDriver(options);
+        return new ChromeDriver(options);
     }
 
 
@@ -291,6 +289,7 @@ public class CardService {
     // 리미티드 레귤레이션 크롤링
     public void limitCrawl() {
         limitRegulationRepository.deleteAll();
+        WebDriver driver = setup();
         try {
              // 웹 페이지 열기
             driver.get("https://ygoprodeck.com/banlist/");
@@ -314,9 +313,9 @@ public class CardService {
 
             Thread.sleep(5000);
 
-            scrapeListData("forbidden");
-            scrapeListData("limited");
-            scrapeListData("semilimited");
+            scrapeListData(driver, "forbidden");
+            scrapeListData(driver, "limited");
+            scrapeListData(driver, "semilimited");
 
         } catch (Exception e) {
             log.error("데이터를 가져오는 중 오류가 발생했습니다.", e);
@@ -327,7 +326,7 @@ public class CardService {
         }
     }
 
-    private void scrapeListData(String listId) {
+    private void scrapeListData(WebDriver driver, String listId) {
         // list 전체가 로드될 때까지 기다립니다.
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         wait.until(ExpectedConditions.presenceOfElementLocated(By.id(listId)));

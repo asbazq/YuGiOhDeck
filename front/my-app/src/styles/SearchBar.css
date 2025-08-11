@@ -1,7 +1,7 @@
 .search-wrapper {
   position: sticky;
   margin-top: 10px;
-  top: 0px;            /* 뷰포트 최상단에서 20px 아래에 고정 */
+  top: 0px;
   display: flex;
   justify-content: center;
   z-index: 5;

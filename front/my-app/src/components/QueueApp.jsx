@@ -100,7 +100,7 @@ export default function QueueApp({ children }) {
 
   useEffect(() => {
     const ws = new WebSocket(
-      `ws://localhost:8080/queue-status?qid=${encodeURIComponent(qid)}&userId=${encodeURIComponent(userIdRef.current)}`
+      `wss://no86.xyz:8082/queue-status?qid=${encodeURIComponent(qid)}&userId=${encodeURIComponent(userIdRef.current)}`
     );
     wsRef.current = ws;
     ws.onopen = sendPing;

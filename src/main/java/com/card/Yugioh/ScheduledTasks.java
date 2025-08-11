@@ -9,7 +9,6 @@ import org.springframework.stereotype.Component;
 import com.card.Yugioh.service.CardService;
 import com.card.Yugioh.service.ImageService;
 
-import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
