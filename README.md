@@ -18,10 +18,11 @@
 8. [크롤링 및 스케줄링](#크롤링-및-스케줄링)
 9. [금지/제한 리스트 크롤링](#금지제한-리스트-크롤링)
 10. [이미지 처리 및 API](#이미지-처리-및-api)
-11. [대기열 처리](#대기열-처리)
-12. [TTL과 장기간 미사용 사용자 처리](#TTL과-장기간-미사용-사용자-처리)
-13. [모니터링 및 분석](#모니터링-및-분석)
-14. [디자인](#디자인)
+11. [트러블 슈팅](#트러블-슈팅)
+12. [대기열 처리](#대기열-처리)
+13. [장기간 미사용 사용자 처리](#장기간-미사용-사용자-처리)
+14. [모니터링 및 분석](#모니터링-및-분석)
+15. [디자인](#디자인)
 
 ---
 
@@ -246,8 +247,10 @@ window.history.pushState({}, '', `?deck=${encodeURIComponent(encoded)}`);
         notifier.sendToUser(uid, "{\"type\":\"ENTER\"}");
     }
 ```
+---
 
-## TTL과 장기간 미사용 사용자 처리
+
+## 장기간 미사용 사용자 처리
 
 * **TTL 설정:** Redis Sorted Set의 각 사용자 엔트리마다 score로 타임스탬프를 저장하고, `EXPIRE`를 걸어 세션 만료 시 자동 삭제
 * **비활성 사용자 제어 로직:**
@@ -273,6 +276,42 @@ const sendPing = useCallback(() => {
     }
 }, []);
 ```
+
+## 트러블 슈팅
+
+### ❗ 전역 WebDriver + @PostConstruct 초기화 문제
+
+```text
+java.lang.NullPointerException: Cannot invoke "org.openqa.selenium.WebDriver.get(String)" because "driver" is null
+```
+
+### 📌 원인
+
+* `WebDriver`를 **전역 필드로 선언**하고 `@PostConstruct`에서 초기화했지만,
+  이후정: 매번 새로 생성
+
+```java
+public WebDriver setup() {
+    ChromeOptions options = new ChromeOptions();
+    options.setBinary(System.getenv("WEB_DRIVER_CHROME_BIN"));
+    options.addArguments("--headless", "--no-sandbox", "--disable-dev-shm-usage");
+    return new ChromeDriver(options);
+}
+
+public void runCrawl() {
+    WebDriver driver = setup();
+    try {
+        driver.get("https://example.com");
+        ...
+    } finally {
+        driver.quit();
+    }
+}
+```
+
+> 💡 `WebDriver`는 재사용하지 말고, 작업마다 새로 생성하고 종료하는 구조로 변경하세요.
+
+---
 
 
 ## 모니터링 및 분석
