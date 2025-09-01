@@ -113,7 +113,7 @@ public class ImageService {
             // ID 또는 이름으로 기존 모델을 가져오고 모델이 없는 경우 해당 모델을 유지 -> 이미지를 저장할 때 외래 키 위반 방지
             CardModel referenceModel = cardRepository.findById(baseModel.getId())
                 .orElseGet(() -> {
-                    CardModel byName = cardRepository.findByName(baseModel.getName());
+                    CardModel byName = cardRepository.findByName(baseModel.getName()).orElse(null);
                     return byName != null ? byName : cardRepository.saveAndFlush(baseModel);
                 });
 

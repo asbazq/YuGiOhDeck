@@ -1,0 +1,61 @@
+.ban-wrap { padding: 16px; color: #eaeaff; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; }
+.ban-sec { margin-bottom: 28px; }
+.ban-sec__title {
+  font-weight: 700; margin-bottom: 10px; padding: 8px 12px;
+  background: linear-gradient(90deg, rgba(255,255,255,.08), rgba(255,255,255,0));
+  border-left: 4px solid rgba(160,180,255,.9);
+  border-radius: 6px;
+}
+.ban-sec__count { font-weight: 600; opacity: .85; margin-left: 4px; }
+
+.ban-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
+}
+@media (max-width: 1100px) { .ban-grid { grid-template-columns: repeat(4, 1fr); } }
+@media (max-width: 768px)  { .ban-grid { grid-template-columns: repeat(2, 1fr); } }
+
+.ban-card {
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px;
+  padding: 10px;
+  position: relative;
+  box-shadow: 0 8px 18px rgba(0,0,0,.35);
+}
+.ban-card__thumb-wrap {
+  aspect-ratio: 63 / 88;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.25);
+  overflow: hidden;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.ban-card__thumb { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+.ban-card__name {
+  font-size: 13px; text-align: center; line-height: 1.2; word-break: keep-all;
+  text-shadow: 0 1px 0 rgba(0,0,0,.4);
+}
+
+.ban-card__badges {
+  position: absolute; top: 6px; left: 6px;
+  display: inline-flex; align-items: center; gap: 4px;
+  font-weight: 800;
+}
+.badge {
+  display: inline-block; min-width: 22px; padding: 2px 6px; text-align: center;
+  border-radius: 999px; font-size: 12px; border: 2px solid #000;
+  box-shadow: 0 1px 0 rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.25);
+}
+.arrow { font-weight: 900; text-shadow: 0 1px 0 rgba(0,0,0,.6); }
+
+.badge.from { background: #3b3b3b; color: #fff; }
+.badge.to   { background: #d63b3b; color: #fff; }
+
+/* 숫자별 강조(선택): 0=금지, 1=제한, 2=준제한, 3=무제한 */
+.badge.n0 { background: #c62828; }
+.badge.n1 { background: #d98200; }
+.badge.n2 { background: #3367d6; }
+.badge.n3 { background: #2e7d32; }

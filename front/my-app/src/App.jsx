@@ -19,6 +19,7 @@ import SearchResults from './components/SearchResults';
 import DeckCard from './components/DeckCard';
 // import LimitBoard from './components/LimitBoard';
 import OrientationModal from './components/OrientationModal';
+import BanlistNoticeModal from './components/BanlistNoticeModal';
 
 import Card from './classes/Card';
 
@@ -73,6 +74,41 @@ function App() {
   const searchPanelRef = useRef(null);
   const navigate = useNavigate();
   const [aiOpen, setAiOpen] = useState(false);
+  const [noticeOpen, setNoticeOpen] = useState(false);
+  const [changes, setChanges] = useState([]);
+
+  // 썸네일 URL 제공: 카드 이름이 아니라 id/파일명일 경우엔 맞게 바꿔주세요.
+  const getThumbUrl = (nameOrId) => {
+    // 서버에서 DTO에 id를 함께 준다면 그걸 쓰는 게 제일 안전합니다.
+    const file = filenameOf(nameOrId) ?? `${encodeURIComponent(nameOrId)}.jpg`;
+    return `/images/small/${file}`;
+  };
+
+  useEffect(() => {
+    (async () => {
+      try{
+        const res = await fetch('/cards/current', { cache: 'no-store' });
+        if(!res.ok){
+          console.warn('changes fetch failed', res.status);
+          // 디버깅: 데이터가 없어도 일단 켜서 모달이 보이는지 확인
+          setChanges([]);
+          setNoticeOpen(false);
+          return;
+        }
+        // 서버가 배열 그대로 주는지, {changes:[...]}로 주는지 확인
+        const json = await res.json();
+        const list = Array.isArray(json) ? json : (json?.changes ?? []);
+        console.log('changes loaded:', list);
+        setChanges(list);
+        setNoticeOpen(list.length > 0); // 변경 있을 때만 자동 오픈
+      }catch(err){
+        console.error('changes fetch error', err);
+        // 디버깅용으로 강제 오픈해 시각적으로는 뜨는지 확인
+        setChanges([]);
+        setNoticeOpen(false);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -762,6 +798,12 @@ const requestOrientationPermission = useCallback(async () => {
 
   return (
     <>
+    <BanlistNoticeModal
+        open={noticeOpen}
+        onClose={() => setNoticeOpen(false)}
+        changes={changes}
+        getThumbUrl={(name) => `/images/small/${encodeURIComponent(name)}.jpg`} // 필요에 맞게 수정
+      />
     <button
       className="menu-button"
       onClick={() => setIsMenuOpen(true)}

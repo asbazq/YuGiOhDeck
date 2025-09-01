@@ -3,11 +3,16 @@ package com.card.Yugioh.controller;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import com.card.Yugioh.ScheduledTasks;
-import com.card.Yugioh.security.QueueConfig;
+import com.card.Yugioh.dto.BanlistChangeNoticeDto;
 
+import com.card.Yugioh.security.QueueConfig;
+import com.card.Yugioh.service.CardService;
+
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -17,6 +22,7 @@ public class QueueAdminController {
 
     private final RedisTemplate<String, String> redis;
     private final ScheduledTasks tasks;
+    private final CardService cardService;
 
     /** 현재 설정 조회 */
     @GetMapping("/{qid}")
@@ -50,8 +56,9 @@ public class QueueAdminController {
     }
 
     @PostMapping("/fetchLimitData")
-    public void fetchLimitData() {
-        tasks.fetchLimitData();
+    public ResponseEntity<List<BanlistChangeNoticeDto>> fetchLimitData() {
+        List<BanlistChangeNoticeDto> notices = cardService.limitCrawl();
+        return ResponseEntity.ok(notices);
     }
 
     @PostMapping("/fetchKorData")

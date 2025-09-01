@@ -1,7 +1,8 @@
 package com.card.Yugioh.repository;
 
 
-import java.util.List;
+import java.util.Collection;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -13,4 +14,5 @@ public interface LimitRegulationRepository extends JpaRepository<LimitRegulation
     LimitRegulation findByCardName(String cardName);
     Page<LimitRegulation> findByRestrictionType(String restrictionType, Pageable pageable);
     Page<LimitRegulation> findAll(Pageable pageable);
+    Optional<LimitRegulation> findTopByCardNameIn(Collection<String> names);
 }

@@ -17,22 +17,33 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.card.Yugioh.dto.BanlistChangeNoticeDto;
 import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.dto.LimitRegulationDto;
 import com.card.Yugioh.model.CardImage;
 import com.card.Yugioh.model.CardModel;
 import com.card.Yugioh.model.LimitRegulation;
+import com.card.Yugioh.model.LimitRegulationChange;
+import com.card.Yugioh.model.LimitRegulationChangeBatch;
 import com.card.Yugioh.model.RaceEnum;
 import com.card.Yugioh.repository.CardImgRepository;
 import com.card.Yugioh.repository.CardRepository;
+import com.card.Yugioh.repository.LimitRegulationChangeBatchRepository;
+import com.card.Yugioh.repository.LimitRegulationChangeRepository;
 import com.card.Yugioh.repository.LimitRegulationRepository;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 import java.net.URLEncoder;
@@ -48,6 +59,9 @@ public class CardService {
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
     private final LimitRegulationRepository limitRegulationRepository;
+    private final LimitRegulationChangeRepository changeRepo;
+    private final LimitRegulationChangeBatchRepository changeBatchRepo;
+
     // private final AmazonS3 s3Client;
     // private String bucket;
 
@@ -286,8 +300,8 @@ public class CardService {
     }
 
     // 리미티드 레귤레이션 크롤링
-    public void limitCrawl() {
-        limitRegulationRepository.deleteAll();
+    @Transactional
+    public List<BanlistChangeNoticeDto> limitCrawl() {
         WebDriver driver = setup();
         try {
              // 웹 페이지 열기
@@ -312,43 +326,137 @@ public class CardService {
 
             Thread.sleep(5000);
 
-            scrapeListData(driver, "forbidden");
-            scrapeListData(driver, "limited");
-            scrapeListData(driver, "semilimited");
+            // 1) 최신 리스트 스냅샷
+            Set<String> forbidden   = scrapeListData(driver, "forbidden");
+            Set<String> limited     = scrapeListData(driver, "limited");
+            Set<String> semilimited = scrapeListData(driver, "semilimited");
 
+            // 충돌 방지: 같은 카드가 여러 리스트에 중복되지 않는다고 가정(사이트가 보장)
+            Map<String, String> latest = new HashMap<>();
+            forbidden.forEach(n   -> latest.put(n, "forbidden"));
+            limited.forEach(n     -> latest.put(n, "limited"));
+            semilimited.forEach(n -> latest.put(n, "semilimited"));
+
+            // 2) DB에서 기존 전체 로드 → 빠른 비교용 맵 구성
+            List<LimitRegulation> existingAll = limitRegulationRepository.findAll();
+            Map<String, LimitRegulation> byName = new HashMap<>(existingAll.size());
+            for (LimitRegulation r : existingAll) {
+                byName.put(r.getCardName(), r);
+            }
+
+            List<BanlistChangeNoticeDto> notices = new ArrayList<>();
+            // 3) 업서트(신규/변경만 저장)
+            int inserted = 0, updated = 0, unchanged = 0;
+            for (Map.Entry<String, String> e : latest.entrySet()) {
+                final String cardName = e.getKey();
+                final String newType  = e.getValue();
+
+                LimitRegulation cur = byName.get(cardName);
+                String oldType = "unlimited";
+                if (cur == null) {
+                    // 신규
+                    LimitRegulation n = new LimitRegulation();
+                    n.setCardName(cardName);
+                    n.setRestrictionType(newType);
+                    limitRegulationRepository.save(n);
+
+                    // 공지 후보 판정 (unlimited → forbidden 만 필터)
+                    if (isAnnounceWorthy(oldType, newType)) {
+                        notices.add(new BanlistChangeNoticeDto(cardName, oldType, newType));
+                    }
+                } else {
+                    oldType = cur.getRestrictionType().toLowerCase();
+                    if (!newType.equals(oldType)) {
+                        cur.setRestrictionType(newType);
+                        limitRegulationRepository.save(cur);
+
+                        // 공지 후보 판정
+                        if (isAnnounceWorthy(oldType, newType)) {
+                            notices.add(new BanlistChangeNoticeDto(cardName, oldType, newType));
+                        }
+                    } 
+                }
+            }
+            // 4) 최신 리스트에 없어진 카드 처리
+            Set<String> latestNames = latest.keySet();
+            for (LimitRegulation old : existingAll) {
+                if (!latestNames.contains(old.getCardName())) {
+                    String fromType = old.getRestrictionType().toLowerCase();
+                    String toType   = "unlimited";
+                    if (!fromType.equals(toType)) {
+                        limitRegulationRepository.delete(old);
+                        notices.add(new BanlistChangeNoticeDto(old.getCardName(), fromType, toType));
+                    }
+                }
+            }
+            
+            if (!notices.isEmpty()) {
+                LimitRegulationChangeBatch batch = changeBatchRepo.save(LimitRegulationChangeBatch.builder().build());
+                for (BanlistChangeNoticeDto n : notices) {
+                    LimitRegulationChange row = LimitRegulationChange.builder()
+                            .cardName(n.getCardName())
+                            .oldType(n.getFromType())
+                            .newType(n.getToType())
+                            .batch(batch)
+                            .build();
+                    changeRepo.save(row);
+                }
+            }
+
+            return notices;
         } catch (Exception e) {
             log.error("데이터를 가져오는 중 오류가 발생했습니다.", e);
             e.printStackTrace();
+            return List.of();
         } finally {
             // 브라우저 닫기
             driver.quit();
         }
     }
 
-    private void scrapeListData(WebDriver driver, String listId) {
+    private Set<String> scrapeListData(WebDriver driver, String listId) {
         // list 전체가 로드될 때까지 기다립니다.
         WebDriverWait wait = new WebDriverWait(driver, Duration.ofSeconds(10));
         wait.until(ExpectedConditions.presenceOfElementLocated(By.id(listId)));
 
         try {
             List<WebElement> cards = wait.until(
-            ExpectedConditions.presenceOfAllElementsLocatedBy(By.cssSelector("#" + listId + " span a strong")));
+                ExpectedConditions.presenceOfAllElementsLocatedBy(By.cssSelector("#" + listId + " span a strong")));
 
+            // for (WebElement card : cards) {
+            //     String name = card.getText();
+            //     log.info("{} 리스트 : {}", listId, name);
+            //     LimitRegulation limitRegulation = new LimitRegulation();
+            //     limitRegulation.setCardName(name);
+            //     limitRegulation.setRestrictionType(listId);
+            //     limitRegulationRepository.save(limitRegulation);
+            // }
+
+            Set<String> names = new HashSet<>();
             for (WebElement card : cards) {
-                String name = card.getText();
-                log.info("{} 리스트 : {}", listId, name);
-                LimitRegulation limitRegulation = new LimitRegulation();
-                limitRegulation.setCardName(name);
-                limitRegulation.setRestrictionType(listId);
-                limitRegulationRepository.save(limitRegulation);
+                String name = card.getText().trim();
+                if (!name.isEmpty()) {
+                    names.add(name);
+                }
             }
+            return names;
         } catch (Exception e) {
             log.error("리스트 " + listId + " 데이터를 가져오는 중 오류가 발생했습니다.", e);
             e.printStackTrace();
+            return Collections.emptySet();
         }
-        
-        
-}
+    }
+
+    private boolean isAnnounceWorthy(String fromType, String toType) {
+        return !Objects.equals(
+            normalize(fromType),
+            normalize(toType)
+        );
+    }
+
+    private String normalize(String s) {
+        return s == null ? "unlimited" : s.trim().toLowerCase();
+    }
 
     @Transactional(readOnly = true)
     public Page<LimitRegulationDto> getLimitRegulations(String type, Pageable pageable) {
