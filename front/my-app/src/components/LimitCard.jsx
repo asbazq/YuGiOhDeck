@@ -1,11 +1,15 @@
 import React from 'react';
 import LazyImage from './LazyImage';
+import { localImagePath, filenameOf } from '../common/imagePath';
 
 function LimitCard({ card }) {
-  const { imageUrl, name, restrictionType } = card;
+  const { id, imageUrl, imageUrlSmall, name, restrictionType } = card;
   return (
     <div className="search-result-item">
-      <LazyImage src={`/images/${imageUrl.split('/').pop()}`} alt={name} />
+      <LazyImage
+        src={imageUrlSmall ?? localImagePath(id ?? imageUrl, 'small')}
+        alt={name}
+      />
       {restrictionType && restrictionType !== 'unlimited' && (
         <div
           className={`restriction-label ${

@@ -49,5 +49,7 @@ public class CardModel {
     @Column(insertable = false, updatable = false)
     private String korNameNormalized;
     @OneToMany(mappedBy = "cardModel")
-    private List<CardImage> cardImages;    
+    private List<CardImage> cardImages;
+    private boolean hasKorName;
+    private boolean hasKorDesc;    
 }

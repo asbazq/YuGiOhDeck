@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { trackEvent, sendPageView } from './utils/analytics';
+import pako from 'pako';
+import { useNavigate } from 'react-router-dom';
+
 import './styles/App.css';
 import './styles/DeckCard.css';
 import './styles/SearchBar.css';
@@ -10,19 +13,29 @@ import './styles/Menu.css'
 import './styles/Button.css'
 import './styles/MobileSearch.css';
 
-import pako from 'pako';
 import SearchBar from './components/SearchBar';
+import AICardRecognizerModal from "./components/AICardRecognizerModal";
 import SearchResults from './components/SearchResults';
 import DeckCard from './components/DeckCard';
 // import LimitBoard from './components/LimitBoard';
 import OrientationModal from './components/OrientationModal';
+
 import Card from './classes/Card';
+
 import { sortCards, saveUrl } from './common/deckUtils';
+import { localImagePath, filenameOf } from './common/imagePath';
+
 import alertCard from './img/black-magician-girl-card-8bit.png';
 import konamiGif from './img/1750263964.gif';
-import { useNavigate } from 'react-router-dom';
 
+const EXTRA_FRAMES = new Set([
+  'link','fusion','synchro','xyz',
+  'xyz_pendulum','synchro_pendulum','fusion_pendulum'
+]);
 
+const isExtraFrame = (f) => EXTRA_FRAMES.has(f);
+const getDeckType = (f) => (isExtraFrame(f) ? 'extra' : 'main');
+const getScaleFactor = () => (window.innerWidth <= 768 ? 3 : 4);
 
 
 function App() {
@@ -59,6 +72,7 @@ function App() {
   const orientationRequestRef = useRef(false);
   const searchPanelRef = useRef(null);
   const navigate = useNavigate();
+  const [aiOpen, setAiOpen] = useState(false);
 
   useEffect(() => {
     if (typeof DeviceOrientationEvent !== 'undefined' &&
@@ -107,16 +121,54 @@ function App() {
     return () => window.removeEventListener('scroll', handleScrollBtn);
   }, [isMobile]);
 
-  useEffect(() => {
-    const leftContainer = document.querySelector('.left-container');
-    if (isMobile && isSearchOpen) {
-      document.body.style.overflow = 'hidden';
-      if (leftContainer) leftContainer.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-      if (leftContainer) leftContainer.style.overflow = '';
-    }
-  }, [isMobile, isSearchOpen]);
+useEffect(() => {
+  const leftContainer = document.querySelector('.left-container');
+
+  // ✅ 스크롤 잠금 조건: 모바일 검색 패널 열림 OR AI 모달 열림
+  const shouldLock =
+    (isMobile && isSearchOpen) || aiOpen;
+
+  if (shouldLock) {
+    // 현재 스크롤 위치 저장
+    const scrollY = window.scrollY || document.documentElement.scrollTop || 0;
+    document.body.dataset.scrollY = String(scrollY);
+
+    // 레이아웃 점프 없이 스크롤 잠금 (iOS 사파리 대응)
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+
+    // 내부 스크롤도 차단
+    if (leftContainer) leftContainer.style.overflow = 'hidden';
+  } else {
+    // 원복 + 저장된 스크롤 위치로 복귀
+    const y = parseInt(document.body.dataset.scrollY || '0', 10);
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    document.body.style.overflow = '';
+    delete document.body.dataset.scrollY;
+    window.scrollTo(0, y);
+
+    if (leftContainer) leftContainer.style.overflow = '';
+  }
+
+  // 언마운트 안전장치
+  return () => {
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
+    document.body.style.width = '';
+    document.body.style.overflow = '';
+    delete document.body.dataset.scrollY;
+  };
+}, [isMobile, isSearchOpen, aiOpen]);
   
   useEffect(() => {
     sendPageView(window.location.pathname);
@@ -151,7 +203,16 @@ function App() {
         })
       );
 
-      setSearchResults(prevResults => page === 0 ? resultsWithInfo : [...prevResults, ...resultsWithInfo]);
+      const withLocalImages = resultsWithInfo.map(r => {
+        const idOrFile = r.id ?? filenameOf(r.imageUrl) ?? filenameOf(r.imageUrlSmall);
+        return {
+          ...r,
+          imageUrlSmall: localImagePath(idOrFile, 'small'), // 목록/썸네일
+          imageUrl:      localImagePath(idOrFile, 'large'), // 상세/확대
+        };
+      });
+
+      setSearchResults(prev => page === 0 ? withLocalImages : [...prev, ...withLocalImages]);
       setHasMoreResults(!data.last);
       setCurrentPage(data.number);
     } catch (error) {
@@ -280,6 +341,8 @@ const copyUrl = () => {
     }
     const info = await response.json();
     const restriction = (info.restrictionType || 'unlimited').toLowerCase();
+    const effectiveFrameType = (frameType || info.frameType || info.frame_type || '').toLowerCase();
+    const deckType = getDeckType(effectiveFrameType);      // ✅ 여기서 최종 판단
 
     let limit = 3;
     let resType = '';
@@ -293,8 +356,14 @@ const copyUrl = () => {
       limit = 2;
       resType = '준제한'
     }
-    const cardImageId = imageUrl.split('/').pop();
-    const count = [...mainDeck, ...extraDeck].filter(card => card.imageUrl.includes(cardImageId)).length;
+
+    const idOrFile     = info?.id ?? filenameOf(imageUrl);      // 넘어온 small에서 파일명 추출
+    const imageUrlSmall = localImagePath(idOrFile, 'small');    // 로컬 small
+    const imageUrlLarge = localImagePath(idOrFile, 'large');    // 로컬 large
+
+    // 중복 체크는 id로
+    const cardId = info?.id ?? filenameOf(imageUrlLarge);
+    const count = [...mainDeck, ...extraDeck].filter(c => (c.id ?? filenameOf(c.imageUrl)) === String(cardId)).length;
 
     if (count >= limit) {
       showMessage(`같은 ${resType} 카드는 ${limit}장만 추가 가능합니다`);
@@ -302,38 +371,35 @@ const copyUrl = () => {
     }
     
     const cardData = new Card({
-      imageUrl,
-      frameType,
+      id: info?.id,                   // 가능하면 id 저장(중복 판별용)
+      imageUrl:      imageUrlLarge,   // 상세/확대: large
+      imageUrlSmall: imageUrlSmall,   // 목록/썸네일: small
+      frameType: effectiveFrameType,
       name,
-      restrictionType: restriction,
+      restrictionType: restriction
     });
 
-
-    if (['link', 'fusion', 'synchro', 'xyz', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum'].includes(frameType)) {
-      if (extraDeck.length >= 15) {
-        showMessage('엑스트라 덱은 15장까지만 가능합니다.');
-        return;
-      }
-      const newExtraDeck = sortCards([...extraDeck, cardData]);
-      setExtraDeck(newExtraDeck);
-      saveUrl(mainDeck, newExtraDeck);
-      trackEvent('add_to_deck', {
-        card_name: name,
-        deck_type: ['link', 'fusion', 'synchro', 'xyz', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum'].includes(frameType) ? 'extra' : 'main'
-      });
-    } else {
-      if (mainDeck.length >= 60) {
-        showMessage('메인 덱은 60장까지만 가능합니다.');
-        return;
-      }
-      const newMainDeck = sortCards([...mainDeck, cardData]);
-      setMainDeck(newMainDeck);
-      saveUrl(newMainDeck, extraDeck);
-      trackEvent('add_to_deck', {
-        card_name: name,
-        deck_type: ['link', 'fusion', 'synchro', 'xyz', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum'].includes(frameType) ? 'extra' : 'main'
-      });
+    // 덱 용량 체크
+    if (deckType === 'extra' && extraDeck.length >= 15) {
+      showMessage('엑스트라 덱은 15장까지만 가능합니다.');
+      return;
     }
+    if (deckType === 'main' && mainDeck.length >= 60) {
+      showMessage('메인 덱은 60장까지만 가능합니다.');
+      return;
+    }
+
+    // 공통 로직
+    if (deckType === 'extra') {
+      const newExtra = sortCards([...extraDeck, cardData]);
+      setExtraDeck(newExtra);
+      saveUrl(mainDeck, newExtra);
+    } else {
+      const newMain = sortCards([...mainDeck, cardData]);
+      setMainDeck(newMain);
+      saveUrl(newMain, extraDeck);
+    }
+    trackEvent('add_to_deck', { card_name: name, deck_type: deckType });
   };
 
   const removeCardFromDeck = useCallback((index, deckType) => {
@@ -401,8 +467,7 @@ const copyUrl = () => {
         card.classList.add('expanded');
         card.style.top = '';
         card.style.left = '';
-        const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
-        card.style.transform = `translate(-50%, -50%) scale(${scaleFactor})`;
+        card.style.transform = `translate(-50%, -50%) scale(${getScaleFactor()})`;
       });
 
       card.addEventListener('transitionend', function handler() {
@@ -421,7 +486,6 @@ const copyUrl = () => {
       }
       if (expandedOverlayRef.current) {
         expandedOverlayRef.current.style.display = 'none';
-        
       }
 
       const origTop = parseFloat(card.dataset.origTop || 0);
@@ -472,14 +536,14 @@ const copyUrl = () => {
       const rotateX = (40 / 143) * y - 26;
 
       if (isExpanded) {
-        const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+        const scaleFactor = getScaleFactor();
         cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(${scaleFactor}) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
       } else {
         cardRefs.current[index].style.transform = `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
       }
     } else {
       if (isExpanded) {
-        const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+        const scaleFactor = getScaleFactor();
         cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(${scaleFactor})`;
       } else {
         cardRefs.current[index].style.transform = '';
@@ -496,15 +560,18 @@ const copyUrl = () => {
 
 
   const handleMouseOut = (index) => {
-     if (isAnimatingRef.current) return;
-    if (cardRefs.current[index]) {
-      overlayRefs.current[index].style.background = 'none';
-      if (isExpanded) {
-        const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
-        cardRefs.current[index].style.transform = `translate(-50%, -50%) scale(${scaleFactor})`;
-      } else {
-        cardRefs.current[index].style.transform = effectsEnabled ? 'perspective(350px) rotateY(0deg) rotateX(0deg)' : '';
-      }
+    if (isAnimatingRef.current) return;
+    const node = cardRefs.current?.[index];
+    const overlay = overlayRefs.current?.[index];
+    if (!node) return;                // 노드가 없으면 조용히 종료
+    if (overlay) overlay.style.background = 'none';
+
+    if (isExpanded) {
+      node.style.transform = `translate(-50%, -50%) scale(${getScaleFactor()})`;
+    } else {
+      node.style.transform = effectsEnabled
+        ? 'perspective(350px) rotateY(0deg) rotateX(0deg)'
+        : '';
     }
   };
 
@@ -583,6 +650,17 @@ const requestOrientationPermission = useCallback(async () => {
       expandedOverlayRef.current.style.display = 'none';
     }
 
+    
+    // ✅ 이미지 small로 원복
+    const cardImg = card.querySelector('.card');
+    if (cardImg) {
+      const small = cardImg.getAttribute('data-small');
+      if (small) {
+        cardImg.style.backgroundImage = `url("${small}")`;
+        // <img>라면: cardImg.src = small;
+      }
+    }
+
     const origTop = parseFloat(card.dataset.origTop || 0);
     const origLeft = parseFloat(card.dataset.origLeft || 0);
     const origScrollY = parseFloat(card.dataset.origScrollY || 0);
@@ -631,14 +709,13 @@ const requestOrientationPermission = useCallback(async () => {
             newY = currentY + Math.abs(scrollDiff) * 10;
           }
 
-          const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
+          const scaleFactor = getScaleFactor();
           card.style.transform = `translate(-50%, ${newY}px) scale(${scaleFactor})`;
 
           clearTimeout(scrollTimeout);
           scrollTimeout = setTimeout(() => {
             if (expandedIndexRef.current !== null) {
-              const scaleFactor = window.innerWidth <= 768 ? 3 : 4;
-              card.style.transform = `translate(-50%, -50%) scale(${scaleFactor})`;
+              card.style.transform = `translate(-50%, -50%) scale(${getScaleFactor()})`;
             }
           }, 200);
 
@@ -729,6 +806,13 @@ const requestOrientationPermission = useCallback(async () => {
             frameType={frameType}
             onFrameChange={setFrameType}
           />
+          {/* AI 카드 판별 버튼: 검색창 아래 */}
+          <button
+            className="ai-button ai-button--mobile"
+            onClick={() => setAiOpen(true)}
+          >
+            AI 카드 판별
+          </button>
           <div className="divider"></div>
           <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
         </div>
@@ -802,6 +886,17 @@ const requestOrientationPermission = useCallback(async () => {
       className="expanded-overlay"
       onClick={handleOverlayClick}
     ></div>
+    
+    <AICardRecognizerModal
+      open={aiOpen}
+      onClose={() => setAiOpen(false)}
+      onPick={(card) => {
+        // card: { imageUrl, frameType, name } 형태라고 가정
+        addCardToDeck(card.imageUrl, card.frameType, card.name);
+        setAiOpen(false);
+      }}
+    />
+
       {isExpanded && cardDetail && (
         <div className="card-detail-container" style={{ display: 'block' }}>
           <div id="cardDetailContainer">{cardDetail.name}</div>
@@ -837,6 +932,7 @@ const requestOrientationPermission = useCallback(async () => {
               key={`${card.imageUrl.split('/').pop()}-${index}`}
               card={card}
               index={index}
+              useLarge={expandedIndex === index}
               cardRefs={cardRefs}
               overlayRefs={overlayRefs}
               onClick={handleClick}
@@ -859,6 +955,7 @@ const requestOrientationPermission = useCallback(async () => {
               key={`${card.imageUrl.split('/').pop()}-extra-${index}`}
               card={card}
               index={mainDeck.length + index}
+              useLarge={expandedIndex === (mainDeck.length + index)}
               cardRefs={cardRefs}
               overlayRefs={overlayRefs}
               onClick={handleClick}
@@ -885,7 +982,14 @@ const requestOrientationPermission = useCallback(async () => {
             frameType={frameType}
             onFrameChange={setFrameType}
           />
+          <button
+            className="ai-button ai-button--desktop"
+            onClick={() => setAiOpen(true)}
+          >
+            AI 카드 판별
+          </button>
           <div className="divider"></div>
+     
           <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
         </div>
       )}

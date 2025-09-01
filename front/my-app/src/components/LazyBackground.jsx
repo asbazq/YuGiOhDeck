@@ -6,9 +6,13 @@ function LazyBackground({ src, className }) {
   const [bg, setBg] = useState(`url(${PLACEHOLDER_IMAGE})`);
 
   useEffect(() => {
+    if (!src) { setBg(`url(${PLACEHOLDER_IMAGE})`); return; }
+    setBg(`url(${PLACEHOLDER_IMAGE})`); // src 바뀌면 일단 placeholder
     const img = new Image();
-    img.src = src;
     img.onload = () => setBg(`url(${src})`);
+    img.onerror = () => setBg(`url(${PLACEHOLDER_IMAGE})`);
+    img.src = src;
+    return () => { img.onload = null; img.onerror = null; };
   }, [src]);
 
   return <div className={className} style={{ backgroundImage: bg }}></div>;

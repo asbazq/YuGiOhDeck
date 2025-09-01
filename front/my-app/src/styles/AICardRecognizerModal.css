@@ -1,0 +1,173 @@
+.ai-modal-backdrop {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  font-family: 'NeoDunggeunmo', sans-serif;
+}
+.ai-modal {
+  background: #fff; 
+  color: #111;
+  width: min(920px, 92vw);
+  max-height: 90vh;        /* 화면 높이의 90%까지만 */
+  overflow-y: auto;        /* 넘치면 세로 스크롤 */
+  border-radius: 0;
+  border: 1px solid #000;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5);
+  display: flex;
+  flex-direction: column;  /* header, body, footer 세로 배치 */
+}
+
+.ai-modal-header, .ai-modal-footer {
+  padding: 12px 16px;
+  border-bottom: 1px solid #000;
+  position: relative;
+}
+.ai-modal-footer { border-top: 1px solid #000; border-bottom: none; display: flex; justify-content: flex-end; gap: 8px; }
+.ai-close {
+  position: absolute; top: 8px; right: 8px;
+  background: transparent; color: #666;
+  font-size: 22px; border: 0; cursor: pointer;
+}
+.ai-modal-body {
+  padding: 16px;
+  overflow-y: auto;        /* body 부분만 스크롤 가능 */
+  flex: 1;                 /* 남는 공간 차지 */
+  min-height: 0;           /* flex overflow 버그 방지 */
+}
+
+.ai-upload-row { display: flex; gap: 8px; align-items: center; margin-bottom: 12px; }
+.ai-file-input {
+  width: 780px;       /* 원하는 가로 크기 */
+  font-size: 14px;    /* 글자 크기 */
+  padding: 4px;       /* 내부 여백 */
+  cursor: pointer;
+  font-family: 'NeoDunggeunmo', sans-serif;
+}
+/* Chrome, Edge, Safari */
+input[type="file"]::-webkit-file-upload-button {
+  display: none;   /* 기본 버튼 숨김 */
+}
+
+/* Firefox */
+input[type="file"]::file-selector-button {
+  display: none;   /* 기본 버튼 숨김 */
+}
+
+.ai-btn {
+    display:inline-block;
+    padding:8px 16px;
+    background:#3a5cda;
+    color:#fff;
+    border:4px solid #000;
+    font-family: 'NeoDunggeunmo', sans-serif;
+    font-size: 15px;
+    box-shadow:
+               inset -4px -4px 0 #2742a0,
+               4px 4px 0 #000;
+    text-shadow:1px 1px 0 #000;
+    cursor:pointer;
+    transition:transform .05s;
+}
+.ai-btn:hover { 
+  background: #2d4373;
+}
+.ai-btn:active {
+  transform: translateY(1px);
+}
+
+.ai-btn:disabled { opacity: .6; cursor: not-allowed; }
+.ai-btn-outline { background: #fff; color: #111; }
+.ai-error { color: #b91c1c; margin: 8px 0; }
+
+.ai-top1-title, .ai-img-title {
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.ai-hint {
+  font-size: 15px;
+  color: #444;
+  margin-top: 6px;
+}
+
+.ai-top4-item { text-align: center; cursor: pointer; }
+
+/* 좌측 업로드 이미지 + 우측 Top1을 가로로 */
+.ai-main-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+/* 좌측 컬럼 */
+.ai-overlay {
+  flex: 1 1 50%;
+  margin: 0;              /* 기존 margin 제거 */
+  text-align: center;
+  align-items: center; 
+}
+.ai-overlay img {
+  width:65%;
+  max-width: 360px;
+  height: auto;
+  object-fit: contain;
+}
+
+/* 우측 컬럼 */
+.ai-top1 {
+  flex: 1 1 50%;
+  margin-top: 0;          /* 기존 8px 제거 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.ai-top1-img {
+  width: 65%;
+  max-width: 360px;       /* 우측 이미지 과확대 방지 */
+  max-height: 420px;
+  object-fit: contain;
+  cursor: pointer;
+  display: block;
+  margin: 0 auto;
+}
+
+/* Top4 더 작게 */
+.ai-top4-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(70px, 1fr)); /* 썸네일 축소 */
+  gap: 8px;
+  margin-top: 12px;
+}
+.ai-top4-thumb {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 63/88;
+  background: #fff;
+  overflow: hidden;
+}
+.ai-top4-thumb > img {
+  position: absolute; inset: 0;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 모바일에선 세로 스택 */
+@media (max-width: 768px) {
+  .ai-main-row {
+    flex-direction: column;
+  }
+  .ai-overlay, .ai-top1 {
+    flex: 1 1 auto;
+    max-width: 100%;
+  }
+  .ai-top1-img {
+    width: 100%;
+    max-width: none;
+  }
+  .ai-top4-row {
+    grid-template-columns: repeat(2, minmax(70px, 1fr));
+  }
+}

@@ -28,7 +28,6 @@ import com.card.Yugioh.repository.CardImgRepository;
 import com.card.Yugioh.repository.CardRepository;
 import com.card.Yugioh.repository.LimitRegulationRepository;
 
-import io.github.bonigarcia.wdm.WebDriverManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
@@ -57,6 +56,8 @@ public class CardService {
         "synchro_pendulum", "fusion_pendulum",
         "normal_pendulum"
     );
+
+    private static final Pattern HANGUL = Pattern.compile("[가-힣]");
 
     public WebDriver setup() {
         // WebDriverManager를 사용하여 ChromeDriver를 자동으로 관리
@@ -117,40 +118,36 @@ public class CardService {
 
     @Transactional
     public void crawlAll() {
-        List<CardModel> cards = cardRepository.findAll();
+        List<CardModel> targets = cardRepository.findAllByHasKorNameFalseOrHasKorDescFalse();
 
-        for (CardModel card : cards) {
-            // 이미 한글명이 있고 설명이 채워져 있으면 건너뛰기
-            if (card.getKorName() != null && card.getKorDesc() != null) {
-                continue;
-            }
+        for (CardModel card : targets) {
 
             String encodedName = encodeCardName(card.getName());
-            String primaryUrl = "https://yugioh.fandom.com/wiki/" + encodedName;
-            String fallbackUrl = "https://yugipedia.com/wiki/"   + encodedName;
+            String url1 = "https://yugioh.fandom.com/wiki/" + encodedName;
+            String url2 = "https://yugipedia.com/wiki/"   + encodedName;
 
-            Document doc = fetchDoc(primaryUrl);
-            Document spareDoc = fetchDoc(fallbackUrl);
+            Document doc = fetchDoc(url1);
+            Document spareDoc = (doc == null) ? fetchDoc(url2) : null;
 
-            // 이름 추출
-            String korName = extractKorName(doc, spareDoc);
-            if (korName != null) {
-                card.setKorName(korName);
-            } else {
-                log.info("한국어 이름을 찾을 수 없습니다: {}", card.getName());
+            // 이미 채워져 있지 않은 필드만 채움 (불필요한 재작업 방지)
+            if (!card.isHasKorName()) {
+                String kn = extractKorName(doc, spareDoc);
+                if (kn != null && !kn.isBlank()) {
+                    card.setKorName(kn);
+                    card.setHasKorName(true); // Generated Column이면 불필요
+                }
             }
-
-            // 설명 추출
-            boolean isPendulum = PENDULUM_FRAMES.contains(card.getFrameType());
-            String korDesc = extractKorDesc(doc, spareDoc, isPendulum);
-            if (korDesc != null) {
-                card.setKorDesc(korDesc);
-            } else {
-                log.info("한국어 설명을 찾을 수 없습니다: {}", card.getName());
+            if (!card.isHasKorDesc()) {
+                boolean isPendulum = PENDULUM_FRAMES.contains(card.getFrameType());
+                String kd = extractKorDesc(doc, spareDoc, isPendulum);
+                if (kd != null && !kd.isBlank()) {
+                    card.setKorDesc(kd);
+                    card.setHasKorDesc(true); // Generated Column이면 불필요
+                }
             }
-
-            cardRepository.save(card);
         }
+        // 루프마다 save() X → 한 번에 flush
+        cardRepository.saveAll(targets);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -246,24 +243,28 @@ public class CardService {
 
 
     public CardInfoDto getCardInfo(String cardName) {
+        String q = cardName == null ? "" : cardName.trim();
+        if (q.isEmpty()) throw new IllegalArgumentException("카드명이 빈 값입니다.");
         String korDesc = "";
-        String restrictionType = "unlimited";
         CardModel cardModel;
 
-        if (Pattern.matches("\\d+", cardName)) {
-            Long cardId = Long.parseLong(cardName);
-            CardImage cardImage = cardImgRepository.findById(cardId).orElseThrow(
-                () -> new IllegalArgumentException("해당 카드가 존재하지 않습니다."));
+
+        // 1) 숫자(이미지 id로 접근)
+        if (q.chars().allMatch(Character::isDigit)) {
+            Long cardId = Long.parseLong(q);
+            CardImage cardImage = cardImgRepository.findById(cardId)
+                .orElseThrow(() -> new IllegalArgumentException("해당 카드가 존재하지 않습니다."));
             cardModel = cardImage.getCardModel();
+
+        // 2) 한글 포함 → kor_name로 1회 조회
+        } else if (HANGUL.matcher(q).find()) {
+            cardModel = cardRepository.findByKorName(q)
+                .orElseThrow(() -> new IllegalArgumentException("해당 카드가 존재하지 않습니다."));
+
+        // 3) 그 외(영문/기타) → name로 1회 조회
         } else {
-            cardModel = cardRepository.findByKorName(cardName)
-                                    .orElseGet(() -> {
-                                        CardModel byName = cardRepository.findByName(cardName);
-                                        if (byName == null) {
-                                            throw new IllegalArgumentException("해당 카드가 존재하지 않습니다.");
-                                        }
-                                        return byName;
-                                    });
+            cardModel = cardRepository.findByName(q)
+                .orElseThrow(() -> new IllegalArgumentException("해당 카드가 존재하지 않습니다."));
         }
 
         String displayName = cardModel.getKorName() != null ?
@@ -276,13 +277,11 @@ public class CardService {
         }
         String enRace = cardModel.getRace();
         RaceEnum korRace = RaceEnum.fromEnglishName(enRace);
-        LimitRegulation limitRegulation = limitRegulationRepository.findByCardName(cardModel.getName());
-        if (limitRegulation == null && cardModel.getKorName() != null) {
-            limitRegulation = limitRegulationRepository.findByCardName(cardModel.getKorName());
-        }
-        if (limitRegulation != null) {
-            restrictionType = limitRegulation.getRestrictionType();
-        }
+        LimitRegulation limit = limitRegulationRepository
+                .findTopByCardNameIn(List.of(cardModel.getName(), cardModel.getKorName()))
+                .orElse(null);
+
+        String restrictionType = (limit != null) ? limit.getRestrictionType() : "unlimited";
         return new CardInfoDto(displayName, korDesc, korRace.getRace(), restrictionType);
     }
 
@@ -361,7 +360,7 @@ public class CardService {
         }
         return limits.map(limit -> {
             CardModel model = cardRepository.findByKorName(limit.getCardName())
-                                          .orElseGet(() -> cardRepository.findByName(limit.getCardName()));
+                                          .orElseGet(() -> cardRepository.findByName(limit.getCardName()).orElse(null));
             String name = limit.getCardName();
             String imageUrl = "";
             if (model != null) {

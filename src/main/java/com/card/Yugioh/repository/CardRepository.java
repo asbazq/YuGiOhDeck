@@ -1,6 +1,5 @@
 package com.card.Yugioh.repository;
 
-import org.antlr.v4.runtime.atn.SemanticContext.OR;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -34,9 +33,12 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     Page<CardModel> searchByFullText(@Param("query") String query,
                                         @Param("frameType") String frameType,
                                         Pageable pageable);
-   CardModel findByName(String name);
-   Optional<CardModel> findByKorName(String korName);
-   
-   List<CardModel> findByCreatedAtAfter(LocalDateTime localDateTime);
-   boolean existsByName(String name);
+    Optional<CardModel> findByName(String name);
+    Optional<CardModel> findByKorName(String korName);
+    
+    List<CardModel> findByCreatedAtAfter(LocalDateTime localDateTime);
+    boolean existsByName(String name);
+    List<CardModel> findAllByKorNameIsNullOrKorDescIsNull();
+    List<CardModel> findAllByHasKorNameFalseOrHasKorDescFalse();
+    Page<CardModel> findByHasKorNameFalseOrHasKorDescFalse(Pageable pageable);
 }

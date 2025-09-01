@@ -1,9 +1,11 @@
 import React from 'react';
 import LazyBackground from './LazyBackground';
+import { localImagePath, filenameOf } from '../common/imagePath';
 
 function DeckCard({
   card,
   index,
+  useLarge = false,
   cardRefs,
   overlayRefs,
   onClick,
@@ -13,6 +15,12 @@ function DeckCard({
   onTouchStart,
   onTouchEnd
 }) {
+  // 안전한 파일명/ID 파싱
+  const fileOrId = card?.id ?? filenameOf(card?.imageUrl) ?? filenameOf(card?.imageUrlSmall);
+  const smallSrc = localImagePath(fileOrId, 'small');
+  const largeSrc = localImagePath(fileOrId, 'large');
+  const currentSrc = useLarge ? largeSrc : smallSrc;
+
   return (
     <div className="deck-card-wrapper">
       <div
@@ -29,7 +37,12 @@ function DeckCard({
         }}
       >
         <div className="overlay"></div>
-        <LazyBackground src={card.imageUrl} className="card" />
+        <LazyBackground
+          src={currentSrc}
+          className="card"
+          data-small={smallSrc}
+          data-large={largeSrc}
+        />
         {card.restrictionType && card.restrictionType !== 'unlimited' && (
           <div className="restriction-label">
             {card.restrictionType === 'forbidden'

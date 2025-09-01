@@ -58,7 +58,9 @@ html,body{
 }
 
 /* ---------- MISC ---------- */
-.divider{width:100%;height:4px;background:#000;margin:60px 0;}
+.divider{
+  width:100%;height:4px;background:#000;margin:10px 0;
+}
 
 ::-webkit-scrollbar{width:12px;}
 ::-webkit-scrollbar-track{background:#fff;border-left:4px solid #000;}
@@ -84,3 +86,59 @@ html,body{
 .description {
   color: #fff;
 }
+
+/* 공통 버튼 스타일 */
+.ai-button {
+  display:inline-block;
+  padding:8px 16px;
+  background:#3a5cda;
+  color:#fff;
+  border:4px solid #000;
+  font-family: 'NeoDunggeunmo', sans-serif;
+  font-size: 15px;
+  box-shadow:
+              inset -4px -4px 0 #2742a0,
+              4px 4px 0 #000;
+  text-shadow:1px 1px 0 #000;
+  cursor:pointer;
+  transition:transform .05s;
+}
+
+.ai-button:hover { 
+  background: #2d4373;
+}
+.ai-button:active {
+  transform: translateY(1px);
+}
+
+/* 데스크톱 전용: 검색창 하단에 sticky 고정 */
+.ai-button--desktop {
+  top: 12px;             /* 화면 상단에서 12px 아래에 고정 */
+  z-index: 2;            /* 리스트 등과 겹치지 않도록 */
+  margin-top: 12px;
+}
+
+/* 모바일 전용: 패널 상단에 붙이기 */
+.ai-button--mobile {
+  top: 0;                /* search-panel 스크롤 컨테이너 상단 */
+  z-index: 2;
+  margin: 8px 12px 12px; /* 좌우 여백 주기 */
+  width: 270px;
+}
+
+/* 컨테이너가 overflow로 가리면 sticky가 안 먹힐 수 있어요.
+   필요 시 right-container/search-panel에 아래처럼 설정해 주세요. */
+.right-container {
+  overflow: visible;     /* sticky 버튼이 잘 보이게 */
+}
+.search-panel {
+  overflow-y: auto;      /* 모바일 패널은 내부 스크롤 */
+}
+
+/* 버튼을 오른쪽 정렬하고 싶다면: */
+.ai-button--desktop.align-right {
+  margin-left: auto;
+}
+
+/* 버튼을 전체 폭으로 꽉 차게: 부모가 좁으면 100%로 맞춰짐 */
+.right-container .ai-button { width: 100%; }

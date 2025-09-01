@@ -1,9 +1,7 @@
 package com.card.Yugioh.service;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -11,18 +9,12 @@ import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.imageio.ImageIO;
 
 import org.apache.hc.client5.http.fluent.Request;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.io.Resource;
-import org.springframework.core.io.UrlResource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
+
 import org.springframework.web.bind.annotation.RestController;
 
 import com.card.Yugioh.model.CardImage;
@@ -46,7 +38,7 @@ public class ImageService {
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?banlist=ocg&sort=new";
     // 모든 카드
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
-    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=100&offset=0&sort=new";
+    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=500&offset=0&sort=new";
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
@@ -54,12 +46,16 @@ public class ImageService {
 
     @Value("${card.image.save-path}")
     private String savePathString;
+    @Value("${card.image.small.save-path}")
+    private String saveSmallPathString;
 
     private Path savePath;
+    private Path saveSmallPath;
 
     @PostConstruct
     private void init() {
         this.savePath = Paths.get(savePathString);
+        this.saveSmallPath = Paths.get(saveSmallPathString);
     }
 
     public void fetchAndSaveCardImages() throws IOException {
@@ -101,6 +97,13 @@ public class ImageService {
             log.info("Directory {} already exists.", savePath.toString());
         }
 
+        if (Files.notExists(saveSmallPath)) {
+            log.info("Directory {} does not exist. Creating now...", saveSmallPath.toString());
+            Files.createDirectories(saveSmallPath);
+        } else {
+            log.info("Directory {} already exists.", saveSmallPath.toString());
+        }
+
         for (int i = 0; i < cardData.length(); i++) {
             JSONObject card = cardData.getJSONObject(i);
             JSONArray cardImages = card.getJSONArray("card_images");
@@ -124,24 +127,31 @@ public class ImageService {
 
                 cardImgRepository.save(cardImage);
                 Path outputFile = savePath.resolve(imageId + ".jpg");
+                Path smallOut = saveSmallPath.resolve(imageId + ".jpg");
                 // File outputFile = new File(savePath, imageId + ".jpg");
 
-                if (Files.exists(outputFile)) {
-                    log.info("Image {} already exists, skipping download.", outputFile.getFileName());
-                    continue;
+                 // 큰 이미지 저장
+                if (Files.notExists(outputFile)) {
+                    saveImageFromUrl(imageUrl, outputFile);
+                } else {
+                    log.info("Large image {} exists. Skip.", outputFile.getFileName());
                 }
 
-                saveImage(imageUrl, outputFile);
+                // 작은 이미지 저장
+                if (Files.notExists(smallOut)) {
+                    saveImageFromUrl(imageUrlSmall, smallOut);
+                } else {
+                    log.info("Small image {} exists. Skip.", smallOut.getFileName());
+                }
+
             }
         }
         log.info("저장된 카드 수 : {}", cardData.length());
     }
 
-    private void saveImage(String imageUrl, Path output) throws IOException {
+    private void saveImageFromUrl(String imageUrl, Path output) throws IOException {
         try (InputStream in = new URL(imageUrl).openStream()) {
-            BufferedImage image = ImageIO.read(in);
-            Files.createDirectories(output.getParent()); // 부모 디렉토리가 없으면 생성
-            ImageIO.write(image, "jpg", output.toFile());
+            Files.copy(in, output);
         }
     }
 
@@ -156,22 +166,31 @@ public class ImageService {
         }
     }
     
-    // image 조회
-    @GetMapping("/images/{filename}")
-    public ResponseEntity<Resource> getImage(@PathVariable("filename") String filename) {
-        try {
-            Path imagePath = savePath.resolve(filename);
-            Resource resource = new UrlResource(imagePath.toUri());
+    // // 원본 이미지 조회
+    // @GetMapping("/images/{filename}")
+    // public ResponseEntity<Resource> getImage(@PathVariable("filename") String filename) {
+    //     return serveLocalFile(savePath.resolve(filename));
+    // }
 
-            if (resource.exists() || resource.isReadable()) {
-                return ResponseEntity.ok()
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"" + resource.getFilename() + "\"")
-                    .body(resource);
-            } else {
-                return ResponseEntity.notFound().build();
-            }
-        } catch(MalformedURLException e) {
-            return ResponseEntity.badRequest().build();
-        }
-    }
+    // // 작은 이미지 조회
+    // @GetMapping("/images/small/{filename}")
+    // public ResponseEntity<Resource> getSmallImage(@PathVariable("filename") String filename) {
+    //     return serveLocalFile(saveSmallPath.resolve(filename));
+    // }
+
+    // private ResponseEntity<Resource> serveLocalFile(Path imagePath) {
+    //     try {
+    //         Resource resource = new UrlResource(imagePath.toUri());
+    //         if (resource.exists() && resource.isReadable()) {
+    //             return ResponseEntity.ok()
+    //                 .header(HttpHeaders.CONTENT_DISPOSITION,
+    //                         "inline; filename=\"" + resource.getFilename() + "\"")
+    //                 .body(resource);
+    //         }
+    //         return ResponseEntity.notFound().build();
+    //     } catch (MalformedURLException e) {
+    //         return ResponseEntity.badRequest().build();
+    //     }
+    // }
+
 }
