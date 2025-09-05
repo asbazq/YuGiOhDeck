@@ -21,29 +21,35 @@ public class StaticResourceConfig implements WebMvcConfigurer {
 
   @Override
   public void addResourceHandlers(ResourceHandlerRegistry registry) {
-    // 경로 → 절대경로 → URI → String 변환 (file:/.../ 로 끝에 / 포함)
-    String largeLocation = Paths.get(savePathString)
-        .toAbsolutePath()
-        .normalize()
-        .toUri()
-        .toString();   // 예: file:/var/app/images/
+        // 경로 → 절대경로 → URI → String 변환 (file:/.../ 로 끝에 / 포함)
+        String largeLocation = ensureTrailingSlash(Paths.get(savePathString)
+            .toAbsolutePath()
+            .normalize()
+            .toUri()
+            .toString());   // 예: file:/var/app/images/
 
-    String smallLocation = Paths.get(saveSmallPathString)
-        .toAbsolutePath()
-        .normalize()
-        .toUri()
-        .toString();   // 예: file:/var/app/images/small/
+        String smallLocation = ensureTrailingSlash(Paths.get(saveSmallPathString)
+            .toAbsolutePath()
+            .normalize()
+            .toUri()
+            .toString());   // 예: file:/var/app/images/small/
 
-    registry.addResourceHandler("/images/**")
-        .addResourceLocations(largeLocation) // ← 끝에 / 포함된 file: URL
-        .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic()) // CacheControl: HTTP 캐시 정책을 선언하는 객체로 
-        .resourceChain(true)                                           // 브라우저/CDN에게 캐시 기간/범위를 알려주는 헤더를 생성.
-        .addResolver(new PathResourceResolver());
+        registry.addResourceHandler("/images/small/**")
+            .addResourceLocations(smallLocation)
+            .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic())
+            .resourceChain(true)
+            .addResolver(new PathResourceResolver());
 
-    registry.addResourceHandler("/images/small/**")
-        .addResourceLocations(smallLocation)
-        .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic())
-        .resourceChain(true)
-        .addResolver(new PathResourceResolver());
-  }
+        registry.addResourceHandler("/images/**")
+            .addResourceLocations(largeLocation) // ← 끝에 / 포함된 file: URL
+            .setCacheControl(CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic()) // CacheControl: HTTP 캐시 정책을 선언하는 객체로 
+            .resourceChain(true)                                           // 브라우저/CDN에게 캐시 기간/범위를 알려주는 헤더를 생성.
+            .addResolver(new PathResourceResolver());
+
+
+    }
+    
+    private static String ensureTrailingSlash(String uri) {
+        return uri.endsWith("/") ? uri : uri + "/";
+    }
 }

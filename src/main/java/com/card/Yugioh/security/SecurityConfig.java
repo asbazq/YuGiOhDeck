@@ -30,6 +30,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())    
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/admin/queue/**", "/api/admin/queue/**").hasRole("ADMIN")
+                .requestMatchers("/images/**").permitAll()
                 .anyRequest().permitAll())
             .headers(headers ->
                 headers.permissionsPolicy(policy ->

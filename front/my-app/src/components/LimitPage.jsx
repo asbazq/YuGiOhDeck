@@ -57,6 +57,15 @@ function LimitPage() {
           >
             덱 빌딩
           </button>
+          <button
+            onClick={() => {
+              navigate('/admin/queue');
+              setIsMenuOpen(false);
+              trackEvent('switch_board', { board: 'admin' });
+            }}
+          >
+            관리자
+          </button>
         </div>
       </div>
       <div id="msgWrap" style={{ display: message ? 'flex' : 'none' }}>

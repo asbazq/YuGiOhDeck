@@ -5,14 +5,16 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseBody;
+import org.springframework.web.bind.annotation.RestController;
 
 import com.card.Yugioh.dto.BanlistChangeNoticeDto;
+import com.card.Yugioh.dto.BanlistChangeViewDto;
 import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.dto.LimitRegulationDto;
@@ -23,8 +25,10 @@ import com.card.Yugioh.repository.LimitRegulationChangeRepository;
 import com.card.Yugioh.service.CardService;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
-@Controller
+@Slf4j
+@RestController
 @RequestMapping("/cards")
 @RequiredArgsConstructor
 public class CardController {
@@ -66,5 +70,11 @@ public class CardController {
             .map(r -> new BanlistChangeNoticeDto(r.getCardName(), r.getOldType(), r.getNewType()))
             .toList();
         return ResponseEntity.ok(dto);
+    }
+
+    @GetMapping(value = "/notice", produces = MediaType.APPLICATION_JSON_VALUE)
+    public List<BanlistChangeViewDto> getLatestNotice() {
+        log.info("GET /cards/notice");
+        return cardService.getLatestBanlistNotice();
     }
 }

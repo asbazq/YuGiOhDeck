@@ -22,6 +22,7 @@ public class ScheduledTasks {
 
     private final CardService cardService;
     private final ImageService imageService;
+    private final String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=100&offset=0&sort=new";
 
     // @PostConstruct
     public void onStartup() {
@@ -35,7 +36,7 @@ public class ScheduledTasks {
     @Scheduled(cron = "0 0 3 */14 * ?")
     public void fetchApiData() {
         try {
-            imageService.fetchAndSaveCardImages();
+            imageService.fetchAndSaveCardImages(apiUrl);
         } catch (IOException e) {
             e.printStackTrace();
         }

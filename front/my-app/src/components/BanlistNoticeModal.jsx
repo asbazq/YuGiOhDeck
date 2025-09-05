@@ -3,7 +3,7 @@ import BanlistNotice from './BanlistNotice';
 import '../styles/BanlistNoticeModal.css';
 import { createPortal } from 'react-dom';
 
-export default function BanlistNoticeModal({ open, onClose, changes = [], getThumbUrl }) {
+export default function BanlistNoticeModal({ open, onClose, getThumbUrl }) {
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
     if (open) window.addEventListener('keydown', onKey);
@@ -20,11 +20,12 @@ export default function BanlistNoticeModal({ open, onClose, changes = [], getThu
           <button className="notice-close" onClick={onClose}>×</button>
         </div>
         <div className="notice-body">
-          {Array.isArray(changes) && changes.length > 0 ? (
-            <BanlistNotice changes={changes} getThumbUrl={getThumbUrl} />
-          ) : (
-            <div className="notice-empty">최근 변경 내역이 없습니다.</div>
-          )}
+          <BanlistNotice
+           open={open}
+           onClose={onClose}
+           getThumbUrl={getThumbUrl}
+           endpoint="/cards/limit/notice"
+         />
         </div>
       </div>
     </div>

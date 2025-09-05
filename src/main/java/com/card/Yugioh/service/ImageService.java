@@ -38,7 +38,7 @@ public class ImageService {
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?banlist=ocg&sort=new";
     // 모든 카드
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
-    String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=500&offset=0&sort=new";
+    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=500&offset=0&sort=new";
 
     private final CardRepository cardRepository;
     private final CardImgRepository cardImgRepository;
@@ -58,7 +58,7 @@ public class ImageService {
         this.saveSmallPath = Paths.get(saveSmallPathString);
     }
 
-    public void fetchAndSaveCardImages() throws IOException {
+    public int fetchAndSaveCardImages(String apiUrl) throws IOException {
         String response = Request.get(apiUrl)
                                  .execute()
                                  .returnContent()
@@ -69,6 +69,7 @@ public class ImageService {
         List<CardModel> cardModels = convertToCardModels(cardData);
         saveCardInfo(cardModels);
         saveCardImages(cardData, cardModels);
+        return cardData.length();
     }
 
     private static List<CardModel> convertToCardModels(JSONArray cardData) {

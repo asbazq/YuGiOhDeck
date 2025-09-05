@@ -10,6 +10,7 @@ import com.card.Yugioh.service.CardLookupService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.http.*;
+import org.springframework.http.client.MultipartBodyBuilder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -31,17 +32,24 @@ public class AIController {
         if (file.isEmpty()) {
             return Mono.just(ResponseEntity.badRequest().body("이미지 파일이 없습니다."));
         }
+        String filename = (file.getOriginalFilename() != null) ? file.getOriginalFilename() : "upload.jpg";
+        MediaType partType = (file.getContentType() != null) ? MediaType.parseMediaType(file.getContentType()) : MediaType.APPLICATION_OCTET_STREAM;
 
         ByteArrayResource resource = new ByteArrayResource(bytes(file)) {
             @Override public String getFilename() {
-                return file.getOriginalFilename() != null ? file.getOriginalFilename() : "upload.jpg";
+                return filename;
             }
         };
+
+        MultipartBodyBuilder mb = new MultipartBodyBuilder();
+        mb.part("file", resource)
+        .filename(filename)
+        .contentType(partType); // image/jpeg | image/png | image/webp
 
         return aiWebClient.post()
                 .uri("/predict")                         // ★ FastAPI 엔드포인트에 맞춰주세요
                 .contentType(MediaType.MULTIPART_FORM_DATA)
-                .body(BodyInserters.fromMultipartData("file", resource))
+                .body(BodyInserters.fromMultipartData(mb.build()))
                 .retrieve()
                 .onStatus(HttpStatusCode::isError,
                         resp -> resp.bodyToMono(String.class)

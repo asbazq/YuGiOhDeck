@@ -20,4 +20,11 @@
 }
 .search-results-wrapper {
   position: relative;
+  padding-bottom: 50px;
+}
+
+@media (max-width: 768px) {
+  .search-results-wrapper {
+    padding-bottom: 0px;
+  }
 }

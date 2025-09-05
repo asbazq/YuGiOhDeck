@@ -35,6 +35,10 @@ html,body{
   width:20%;
 }
 
+.search-results {
+  padding-bottom: 80px; /* 하단 여유 공간 확보 */
+}
+
 @media (max-width: 768px) {
   .left-container {
     padding-bottom: 100px;
@@ -123,7 +127,7 @@ html,body{
   top: 0;                /* search-panel 스크롤 컨테이너 상단 */
   z-index: 2;
   margin: 8px 12px 12px; /* 좌우 여백 주기 */
-  width: 270px;
+  width: 260px;
 }
 
 /* 컨테이너가 overflow로 가리면 sticky가 안 먹힐 수 있어요.

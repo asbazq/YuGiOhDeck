@@ -39,13 +39,15 @@
   margin-right: 8px;
 }
 
-.pixel-admin .row label {
+.pixel-admin .row label,
+.fetch-button-container .row label {
   display: flex;
   align-items: center;
   flex: 1;
 }
 
-.pixel-admin .pixel-input {
+.pixel-admin .pixel-input,
+.fetch-button-container .pixel-input {
   width: 120px;
   padding: 8px;
   background: #ffffff;
@@ -123,4 +125,156 @@
   padding: 8px;
   font-size: 10px;
   image-rendering: pixelated;
+}
+
+/* ───────── 추가: 레이아웃 개선 & 반응형 ───────── */
+.pixel-admin-wrapper {
+  gap: 24px;
+  flex-wrap: wrap;
+  padding: 24px;
+  min-height: 100vh; /* 모바일에서 100vh 잘림 방지 */
+  height: auto;
+}
+
+@media (max-width: 900px) {
+  .fetch-button-container {
+    margin-left: 0;
+    width: 100%;
+  }
+}
+
+/* ───────── 추가: 패치 카드 레이아웃 ───────── */
+.fetch-button-container {
+  display: flex;
+  flex-direction: column;   /* 입력들 세로 정렬 */
+  gap: 12px;
+}
+
+.fetch-button-container h1 {
+  font-size: 24px;
+  margin: 0 0 8px;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.fetch-button-container .row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* 두 칸 그리드 (num/offset 같이 놓기 좋음) */
+.field-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.field-grid .pixel-input,
+.field-grid .pixel-select { width: 100%; }
+
+@media (max-width: 560px) {
+  .field-grid { grid-template-columns: 1fr; }
+}
+
+/* ───────── 추가: 공용 셀렉트/와이드 인풋 ───────── */
+.pixel-select {
+  appearance: none;
+  padding: 8px;
+  background: #fff;
+  border: 4px solid #000;
+  box-shadow:
+    inset 4px 4px 0 #7d7d7d,
+    inset -4px -4px 0 #7d7d7d,
+    4px 4px 0 #000;
+  font-family: inherit;
+  font-size: 20px;
+  color: #000;
+  outline: none;
+  image-rendering: pixelated;
+}
+
+/* ───────── 추가: 버튼 행 / 로딩/비활성 상태 ───────── */
+.btn-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pixel-btn[disabled],
+.pixel-btn.is-loading {
+  filter: grayscale(0.2) brightness(0.92);
+  cursor: not-allowed;
+}
+
+/* ───────── 추가: 구분 섹션 / 메시지 변형 ───────── */
+.pixel-section {
+  border: 4px solid #000;
+  padding: 12px;
+  box-shadow:
+    inset 4px 4px 0 #7d7d7d,
+    inset -4px -4px 0 #7d7d7d;
+}
+.pixel-section + .pixel-section { margin-top: 12px; }
+
+.pixel-message.success { background: #8cff66; }
+.pixel-message.error   { background: #ff6666; }
+.pixel-message.small   { font-size: 14px; }
+
+/* ───────── 추가: 작은 도움말 텍스트 ───────── */
+.inline-help {
+  font-size: 12px;
+  color: #333;
+  opacity: 0.9;
+  margin-left: 8px;
+}
+
+.pixel-input-num {
+  width: 120px;
+  padding: 8px;
+  background: #ffffff;
+  border: 4px solid #000;
+  box-shadow:
+    inset 4px 4px 0 #7d7d7d,
+    inset -4px -4px 0 #7d7d7d,
+    4px 4px 0 #000;
+  font-family: inherit;
+  font-size: 20px;
+  color: #000;
+  outline: none;
+  image-rendering: pixelated;
+}
+
+/* 라벨 내부를 양끝 정렬 가능하도록 전체 폭 부여 */
+.fetch-button-container .row label { width: 100%; }
+
+/* 입력을 오른쪽 끝으로 밀기 (pixel-input + pixel-input-num 공통) */
+.pixel-admin .row label > .pixel-input,
+.pixel-admin .row label > .pixel-input-num,
+.fetch-button-container .row label > .pixel-input,
+.fetch-button-container .row label > .pixel-input-num,
+.fetch-button-container .row label > .pixel-select {
+  margin-left: auto;
+}
+
+/* 원하는 공통 폭 */
+:root { --field-width: 230px; }
+
+/* label을 flex 전체폭으로 */
+.fetch-button-container .row label { 
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* 선택/숫자 인풋을 오른쪽 끝으로 밀고 같은 폭 강제 */
+.fetch-button-container .row label > .pixel-input-num,
+.fetch-button-container .row label > .pixel-select {
+  box-sizing: border-box;         /* 테두리/패딩 포함 폭 */
+  margin-left: auto;              /* 우측 붙이기 */
+  width: var(--field-width) !important;   /* 기존 120px 덮기 */
+  min-width: var(--field-width);
+  max-width: var(--field-width);
+  flex: 0 0 var(--field-width);
+}
+
+.fetch-button-container .row label {
+  font-size: 20px;
 }

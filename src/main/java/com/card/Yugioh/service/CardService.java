@@ -12,12 +12,14 @@ import org.openqa.selenium.chrome.ChromeOptions;
 import org.openqa.selenium.support.ui.ExpectedConditions;
 import org.openqa.selenium.support.ui.Select;
 import org.openqa.selenium.support.ui.WebDriverWait;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.card.Yugioh.dto.BanlistChangeNoticeDto;
+import com.card.Yugioh.dto.BanlistChangeViewDto;
 import com.card.Yugioh.dto.CardInfoDto;
 import com.card.Yugioh.dto.CardMiniDto;
 import com.card.Yugioh.dto.LimitRegulationDto;
@@ -46,8 +48,12 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Duration;
 
 @Slf4j
@@ -61,6 +67,12 @@ public class CardService {
     private final LimitRegulationRepository limitRegulationRepository;
     private final LimitRegulationChangeRepository changeRepo;
     private final LimitRegulationChangeBatchRepository changeBatchRepo;
+
+    @Value("${card.image.save-path}")
+    private String savePathString;
+    @Value("${card.image.small.save-path}")
+    private String saveSmallPathString;
+
 
     // private final AmazonS3 s3Client;
     // private String bucket;
@@ -346,7 +358,6 @@ public class CardService {
 
             List<BanlistChangeNoticeDto> notices = new ArrayList<>();
             // 3) 업서트(신규/변경만 저장)
-            int inserted = 0, updated = 0, unchanged = 0;
             for (Map.Entry<String, String> e : latest.entrySet()) {
                 final String cardName = e.getKey();
                 final String newType  = e.getValue();
@@ -460,25 +471,100 @@ public class CardService {
 
     @Transactional(readOnly = true)
     public Page<LimitRegulationDto> getLimitRegulations(String type, Pageable pageable) {
-        Page<LimitRegulation> limits;
-        if (type != null && !type.isEmpty()) {
-            limits = limitRegulationRepository.findByRestrictionType(type.toLowerCase(), pageable);
-        } else {
-            limits = limitRegulationRepository.findAll(pageable);
-        }
+        Page<LimitRegulation> limits = (type != null && !type.isEmpty())
+            ? limitRegulationRepository.findByRestrictionType(type.toLowerCase(), pageable)
+            : limitRegulationRepository.findAll(pageable);
+
         return limits.map(limit -> {
             CardModel model = cardRepository.findByKorName(limit.getCardName())
                                           .orElseGet(() -> cardRepository.findByName(limit.getCardName()).orElse(null));
             String name = limit.getCardName();
             String imageUrl = "";
             if (model != null) {
-                name = model.getKorName() != null ? model.getKorName() : model.getName();
+                name = (model.getKorName() != null && !model.getKorName().isBlank())
+                    ? model.getKorName()
+                    : model.getName();
+
                 List<CardImage> images = cardImgRepository.findByCardModel(model);
                 if (!images.isEmpty()) {
-                    imageUrl = images.get(0).getImageUrlSmall();
+                    CardImage img = images.get(0);
+                    Long imageId = img.getId();
+                    Path localSmall = Paths.get(saveSmallPathString, imageId + ".jpg");
+                    Path localLarge = Paths.get(savePathString, imageId + ".jpg");
+                    if (Files.exists(localSmall)) {
+                        imageUrl = "/images/small/" + imageId + ".jpg";
+                    } else if (Files.exists(localLarge)) {
+                        imageUrl = "/images/" + imageId + ".jpg";
+                    } else if (img.getImageUrlSmall() != null && !img.getImageUrlSmall().isBlank()) {
+                        imageUrl = img.getImageUrlSmall();          // 3) 외부 small
+                    } else if (img.getImageUrl() != null && !img.getImageUrl().isBlank()) {
+                        imageUrl = img.getImageUrl();               // 4) 외부 large
+                    } else {
+                        imageUrl = ""; // 또는 placeholder 경로를 지정하고 싶다면 여기서 지정
+                    }
                 }
             }
             return new LimitRegulationDto(name, imageUrl, limit.getRestrictionType());
         });
+    }
+
+    @Transactional(readOnly = true)
+    public List<BanlistChangeViewDto> getLatestBanlistNotice() {
+        // 1) 최신 배치(최근 발표된 스냅샷) 가져오기
+        var batchOpt = changeBatchRepo.findTopByOrderByIdDesc(); 
+        if (batchOpt.isEmpty()) return List.of();
+
+        var changes = changeRepo.findByBatchOrderByIdAsc(batchOpt.get());
+        return changes.stream()
+            .map(this::toBanlistChangeView)
+            .collect(Collectors.toList());
+    }
+
+    // 이름으로 모델/이미지 찾아 한글명 및 썸네일 결정
+    private BanlistChangeViewDto toBanlistChangeView(LimitRegulationChange row) {
+        final String scrapedName = row.getCardName(); // 크롤러가 가져온 이름
+
+        // 2) kor_name 우선 매칭 → 없으면 영문 name
+        var model = cardRepository.findByKorName(scrapedName)
+                .orElseGet(() -> cardRepository.findByName(scrapedName).orElse(null));
+
+        String displayName = scrapedName;
+        Long imageId = null;
+        String thumbUrl = "";
+
+        if (model != null) {
+            displayName = (model.getKorName() != null && !model.getKorName().isBlank())
+                    ? model.getKorName()
+                    : model.getName();
+
+            var images = cardImgRepository.findByCardModel(model);
+            if (!images.isEmpty()) {
+                var img = images.get(0);
+                imageId = img.getId();  // CardImage의 PK가 곧 파일명 id 라고 가정
+
+                Path localSmall = Paths.get(saveSmallPathString, imageId + ".jpg");
+                Path localLarge = Paths.get(savePathString, imageId + ".jpg");
+
+                // 3) 썸네일 폴백: 로컬 small → 로컬 large → 외부 small → 외부 large
+                if (Files.exists(localSmall)) {
+                    thumbUrl = "/images/small/" + imageId + ".jpg";
+                } else if (Files.exists(localLarge)) {
+                    thumbUrl = "/images/" + imageId + ".jpg";
+                } else if (img.getImageUrlSmall() != null && !img.getImageUrlSmall().isBlank()) {
+                    thumbUrl = img.getImageUrlSmall();
+                } else if (img.getImageUrl() != null && !img.getImageUrl().isBlank()) {
+                    thumbUrl = img.getImageUrl();
+                }
+            }
+        }
+
+        return BanlistChangeViewDto.builder()
+                .name(displayName)           // ✅ 프론트에서는 무조건 c.name 쓰면 한글 우선
+                .cardName(scrapedName)
+                .fromType(row.getOldType().toLowerCase())
+                .toType(row.getNewType().toLowerCase())
+                .imageId(imageId)
+                .thumbUrl(thumbUrl)
+                .build();
     }
 }

@@ -816,8 +816,8 @@ const requestOrientationPermission = useCallback(async () => {
     <div className={`menu-overlay ${isMenuOpen ? 'open' : ''}`} onClick={() => setIsMenuOpen(false)}></div>
     <div className={`side-menu ${isMenuOpen ? 'open' : ''}`}>
       <div className="board-switch">
-        <button onClick={() => { navigate('/limit'); setIsMenuOpen(false); trackEvent('view_limit_board', { board: 'limit' });}}>리미트 레귤레이션</button>
         <button onClick={() => { navigate('/'); setIsMenuOpen(false); trackEvent('switch_board', { board: 'deck' });}}>덱 빌딩</button>
+        <button onClick={() => { navigate('/limit'); setIsMenuOpen(false); trackEvent('view_limit_board', { board: 'limit' });}}>리미트 레귤레이션</button>
         <button onClick={() => { navigate('/admin/queue'); setIsMenuOpen(false); trackEvent('view_admin_page', { board: 'admin' });}}>관리자</button>
       </div>
     </div>
@@ -1032,7 +1032,9 @@ const requestOrientationPermission = useCallback(async () => {
           </button>
           <div className="divider"></div>
      
-          <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
+          <div className="results-scroll">
+            <SearchResults results={searchResults} addCardToDeck={addCardToDeck} />
+          </div>
         </div>
       )}
     </div>
