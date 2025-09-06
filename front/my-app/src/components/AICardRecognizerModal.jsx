@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { trackEvent } from '../utils/analytics';
 import { localImagePath, filenameOf } from '../common/imagePath';
 import "../styles/AICardRecognizerModal.css";
 
@@ -34,6 +35,7 @@ const send = async () => {
   if (!file) { setError('이미지를 선택하세요.'); return; }
   setBusy(true); setError(''); setResp(null);
   try {
+    trackEvent('predict_start');
     const fd = new FormData();
     fd.append('file', file);
 
@@ -42,6 +44,10 @@ const send = async () => {
     if (!r.ok) throw new Error(await r.text() || 'AI 서버 오류');
 
     const data = await r.json();
+    trackEvent('predict_success', {
+      detected_count: data?.detectedCount,
+      elapsed_ms: data?.elapsed,
+    });
 
     // 이미지 URL 생성기: 로컬 정적 서버 경로 또는 ygoprodeck 중 택1
     // const imgFromId = (id) => `/images/${id}.jpg`; 
@@ -84,6 +90,7 @@ const send = async () => {
 
   const pick = (c) => {
     if (!c) return;
+    trackEvent('predict_pick', { card_name: c?.name });
     // onPick: 부모(App)에서 addCardToDeck(imageUrl, frameType, name)로 연결
     onPick({
       ...c,

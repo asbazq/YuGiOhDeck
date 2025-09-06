@@ -17,7 +17,7 @@ export default function QueueAdminPage() {
 
   // ▼ 카드 패치 파라미터 (프론트에서 입력 받기)
   const [cardNum, setCardNum] = useState(500);
-  const [cardOffset, setCardOffset] = useState(0);
+  const [cardOffset, setCardOffset] = useState(20);
   const [cardSort, setCardSort] = useState('new');   // new | atk | def | name | type | level | id ...
   const [loadingApi, setLoadingApi] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);

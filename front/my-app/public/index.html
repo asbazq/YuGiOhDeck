@@ -10,7 +10,8 @@
 
       /* 초기화. send_page_view:false 로 SPA 라우팅 시 직접 page_view 전송 */
       gtag('js', new Date());
-      gtag('config', 'G-HL4HGTHXLN', { send_page_view: false });
+      // Enable debug_mode to surface events in GA DebugView (dev)
+      gtag('config', 'G-HL4HGTHXLN', { send_page_view: false, debug_mode: true });
     </script>
 
     <meta charset="utf-8" />

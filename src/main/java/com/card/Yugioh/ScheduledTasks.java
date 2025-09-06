@@ -22,7 +22,7 @@ public class ScheduledTasks {
 
     private final CardService cardService;
     private final ImageService imageService;
-    private final String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=100&offset=0&sort=new";
+    private final String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=100&offset=20&sort=new";
 
     // @PostConstruct
     public void onStartup() {
@@ -33,7 +33,7 @@ public class ScheduledTasks {
 
     // 2주마다 실행되는 스케줄러 설정 (Cron 표현식 사용)
     // 초(0초),분(0분),시간(3시), */14(14일마다), *(매월), ?(요일을 지정하지 않음)
-    @Scheduled(cron = "0 0 3 */14 * ?")
+    @Scheduled(cron = "0 0 3 * * MON")
     public void fetchApiData() {
         try {
             imageService.fetchAndSaveCardImages(apiUrl);
@@ -43,13 +43,13 @@ public class ScheduledTasks {
         
     }
     // 초 분 시 일 월 요일
-    @Scheduled(cron = "0 0 3 * * MON")
+    @Scheduled(cron = "0 0 3 * * SUN")
     public void fetchLimitData() {
         cardService.limitCrawl();
     }
 
     // 초 분 시 일 월 요일
-    @Scheduled(cron = "0 0 3 * * MON")
+    @Scheduled(cron = "0 0 6 * * MON")
     public void fetchKorData() {
         cardService.crawlAll();
     }

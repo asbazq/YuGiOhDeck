@@ -1,5 +1,6 @@
 package com.card.Yugioh.service;
 
+import org.jsoup.Connection;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -110,7 +111,13 @@ public class CardService {
 
 
     public Page<CardMiniDto> search(String keyWord, String frameType, Pageable pageable) {
-        Page<CardModel> cards = cardRepository.searchByFullText(keyWord, frameType == null ? "" : frameType, pageable);
+        String q = keyWord == null ? "" : keyWord.trim();
+        String ftQuery = buildEnglishBooleanQueryIfEnglish(q);
+        Page<CardModel> cards = cardRepository.searchByFullText(
+                ftQuery,
+                frameType == null ? "" : frameType,
+                q,
+                pageable);
         return cards.map(cardModel -> {
             List<CardImage> cardImages = cardImgRepository.findByCardModel(cardModel);
             LimitRegulation limit = limitRegulationRepository.findByCardName(cardModel.getName());
@@ -180,73 +187,189 @@ public class CardService {
     // URL 인코딩: 스페이스→언더바, 그 외 안전하게 인코딩
     private String encodeCardName(String name) {
         String tmp = name.replace(" ", "_")
-                         .replace("#", "_");
+                         .replace("#", "_")
+                         .replace("<", "")
+                         .replace(">", "");
         return URLEncoder.encode(tmp, StandardCharsets.UTF_8);
     }
 
     // Jsoup 로 문서 가져오기 (실패 시 null 리턴)
     private Document fetchDoc(String url) {
         try {
-            return Jsoup.connect(url)
-                        .userAgent("Mozilla/5.0")
-                        .timeout(10_000)
-                        .get();
+            Connection.Response resp = Jsoup.connect(url)
+                .userAgent("Mozilla/5.0 (compatible; CardCrawler/1.0)")
+                .timeout(10_000)
+                .ignoreHttpErrors(true)  // ← 중요: 404도 예외로 던지지 않음
+                .execute();
+
+            int sc = resp.statusCode();
+            if (sc == 200) {
+                return resp.parse();
+            }
+
+            // 404/410: 문서 없음 → 조용히 스킵(요약 로그만)
+            if (sc == 404 || sc == 410) {
+                log.info("문서 없음({}, {})", sc, url);
+                return null;
+            }
+
+            // 429/5xx: 일시 오류 → 한 번 재시도 (백오프)
+            if (sc == 429 || (sc >= 500 && sc < 600)) {
+                log.warn("일시 오류로 재시도({}): {}", sc, url);
+                Thread.sleep(500L);
+                Connection.Response retry = Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0 (compatible; CardCrawler/1.0)")
+                    .timeout(10_000)
+                    .ignoreHttpErrors(true)
+                    .execute();
+                if (retry.statusCode() == 200) {
+                    return retry.parse();
+                }
+                log.warn("재시도 실패({}, {}): {}", retry.statusCode(), sc, url);
+                return null;
+            }
+
+            // 기타 코드: 정보 로그만 남기고 스킵
+            log.info("문서 가져오기 비정상 상태({}): {}", sc, url);
+            return null;
+
         } catch (IOException e) {
-            log.warn("문서 가져오기 실패 URL={}", url, e);
+            // 네트워크 예외만 간단 메시지
+            log.warn("문서 가져오기 실패(IO): {}", url);
+            return null;
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
             return null;
         }
     }
 
-    // 한글 이름 추출: 우선 doc, 없으면 spareDoc
+    // Korean 행(tr) 찾기: fandom/yugipedia 공통
+    private Element findKoreanRow(Document d) {
+        if (d == null) return null;
+        return d.selectFirst("table.wikitable tr:has(> th:matchesOwn(^\\s*Korean\\s*$))");
+    }
+
+    // 한글 이름 추출: doc → spareDoc 순서
     private String extractKorName(Document doc, Document spareDoc) {
+        // fandom 우선 (기존 로직 유지)
         if (doc != null) {
             Element e = doc.selectFirst("td.cardtablerowdata > span[lang=ko]");
-            if (e != null) {
-                return e.text();
+            if (e != null) return e.text();
+        }
+        // yugipedia: tr/td 인덱스 방식 (견고)
+        Element tr = findKoreanRow(spareDoc);
+        if (tr != null) {
+            Elements tds = tr.select("> td");
+            if (tds.size() >= 1) {
+                Element nameSpan = tds.get(0).selectFirst("span[lang=ko]");
+                if (nameSpan != null) return nameSpan.text();
             }
         }
+        // 백업: 기존 인접 선택자 (마크업 변형 대비)
         if (spareDoc != null) {
             Element e = spareDoc.selectFirst(
                 "table.wikitable th:containsOwn(Korean) + td > span[lang=ko]"
             );
-            if (e != null) {
-                return e.text();
-            }
+            if (e != null) return e.text();
         }
         return null;
     }
 
-    // 한글 설명 추출: pendulum 여부에 따라 각각 처리
+    // 한글 설명 추출: pendulum 여부 분기
     private String extractKorDesc(Document doc, Document spareDoc, boolean pendulum) {
         if (pendulum) {
-            // 1) 메인 사이트 시도
-            String s = extractPendulumDesc(doc, 
-                "td.navbox-list dd > span[lang=ko]");
-            if (s != null) {
-                return s;
-            }
-            // 2) 예비 사이트 시도
+            // fandom 펜듈럼: dd 2개 우선
+            String s = extractPendulumFromFandom(doc);
+            if (s != null) return s;
+
+            // yugipedia 펜듈럼: tr/td(두 번째) 내부 dl/dt/dd 파싱
+            s = extractPendulumFromYugipedia(spareDoc);
+            if (s != null) return s;
+
+            // 백업: 예전 셀렉터
             return extractPendulumDesc(spareDoc,
                 "table.wikitable tr:has(th:containsOwn(Korean)) dl dd > span[lang=ko]");
         } else {
-            // 일반 카드
+            // fandom 일반 설명
             if (doc != null) {
                 Element e = doc.selectFirst("td.navbox-list > span[lang=ko]");
-                if (e != null) {
-                    return e.text();
+                if (e != null) return e.text();
+            }
+            // yugipedia 일반 설명: tr/td(두 번째) 내부 ko
+            Element tr = findKoreanRow(spareDoc);
+            if (tr != null) {
+                Elements tds = tr.select("> td");
+                if (tds.size() >= 2) {
+                    Element descSpan = tds.get(1).selectFirst("span[lang=ko]");
+                    if (descSpan != null) return descSpan.text();
                 }
             }
+            // 백업: 기존 인접 선택자
             if (spareDoc != null) {
                 Element e = spareDoc.selectFirst(
                     "table.wikitable th:containsOwn(Korean) + td + td > span[lang=ko]"
                 );
-                if (e != null) {
-                    return e.text();
-                }
+                if (e != null) return e.text();
             }
             return null;
         }
     }
+
+    // fandom 펜듈럼: dd 두 개 합치기
+    private String extractPendulumFromFandom(Document doc) {
+        if (doc == null) return null;
+        Elements dd = doc.select("td.navbox-list dd > span[lang=ko]");
+        if (dd.isEmpty()) return null;
+        return joinPendulum(dd);
+    }
+
+    // yugipedia 펜듈럼: dl/dt/dd 해석
+    private String extractPendulumFromYugipedia(Document d) {
+        Element tr = findKoreanRow(d);
+        if (tr == null) return null;
+        Elements tds = tr.select("> td");
+        if (tds.size() < 2) return null;
+        Element descCell = tds.get(1);
+
+        // dt/dd 구조 우선
+        Element dl = descCell.selectFirst("dl");
+        if (dl != null) {
+            List<Element> pieces = new ArrayList<>();
+            for (Element dt : dl.select("> dt")) {
+                Element dd = dt.nextElementSibling();
+                if (dd != null && "dd".equals(dd.tagName())) {
+                    // dd 안의 ko 텍스트만 수집
+                    Element ko = dd.selectFirst("span[lang=ko]");
+                    if (ko != null && !ko.text().isBlank()) {
+                        // joinPendulum은 Elements를 받으므로 래핑
+                        Element wrap = new Element("x").text(ko.text());
+                        pieces.add(wrap);
+                    }
+                }
+            }
+            if (!pieces.isEmpty()) return joinPendulum(new Elements(pieces));
+        }
+
+        // 백업: 셀 전체에서 ko 텍스트 뭉치로 수집
+        Elements any = descCell.select("span[lang=ko]");
+        if (!any.isEmpty()) return joinPendulum(any);
+
+        // 최후: plain text
+        String raw = descCell.text();
+        return (raw == null || raw.isBlank()) ? null : raw;
+    }
+
+    // 기존 조립 로직 재사용
+    private String joinPendulum(Elements pieces) {
+        String[] prefixes = {"펜듈럼 효과: ", "몬스터 효과: "};
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < pieces.size() && i < 2; i++) {
+            if (i > 0) sb.append("\n");
+            sb.append(prefixes[i]).append("\n").append(pieces.get(i).text());
+        }
+        return sb.toString().trim();
+    }
+
 
     // pendulum 전용 설명 처리: 첫 두 dd만 "펜듈럼 효과" / "몬스터 효과" 로 합침
     private String extractPendulumDesc(Document doc, String cssQuery) {
@@ -566,5 +689,32 @@ public class CardService {
                 .imageId(imageId)
                 .thumbUrl(thumbUrl)
                 .build();
+    }
+
+    /**
+     * Build a MySQL FULLTEXT BOOLEAN MODE query for English input.
+     * - Adds an exact phrase ("...") to boost adjacent word matches
+     * - Adds +token* for each alphanumeric token to enforce AND + prefix search
+     * - If Hangul exists, returns original string to keep Korean behavior unchanged
+     */
+    private String buildEnglishBooleanQueryIfEnglish(String raw) {
+        if (raw == null) return "";
+        String s = raw.trim();
+        if (s.isEmpty()) return s;
+        if (HANGUL.matcher(s).find()) return s;
+
+        String[] tokens = s.split("[^A-Za-z0-9]+");
+        StringBuilder sb = new StringBuilder();
+        if (tokens.length >= 2) {
+            sb.append('"').append(s).append('"').append(' ');
+        }
+        for (String t : tokens) {
+            if (t == null) continue;
+            String w = t.trim();
+            if (w.isEmpty()) continue;
+            sb.append('+').append(w).append('*').append(' ');
+        }
+        String built = sb.toString().trim();
+        return built.isEmpty() ? s : built;
     }
 }
