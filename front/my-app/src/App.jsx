@@ -20,6 +20,8 @@ import DeckCard from './components/DeckCard';
 // import LimitBoard from './components/LimitBoard';
 import OrientationModal from './components/OrientationModal';
 import BanlistNoticeModal from './components/BanlistNoticeModal';
+import { getOrCreateUserId } from './utils/userId';
+import QueueModal from './components/QueueModal';
 
 import Card from './classes/Card';
 
@@ -74,8 +76,12 @@ function App() {
   const searchPanelRef = useRef(null);
   const navigate = useNavigate();
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiWaiting, setAiWaiting] = useState(false);
+  const [aiWaitingPos, setAiWaitingPos] = useState(null);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [changes, setChanges] = useState([]);
+  const [aiQueueOpen, setAiQueueOpen] = useState(false);
+  const [aiQueuePos, setAiQueuePos] = useState(0);
 
   // 썸네일 URL 제공: 카드 이름이 아니라 id/파일명일 경우엔 맞게 바꿔주세요.
   const getThumbUrl = (nameOrId) => {
@@ -796,6 +802,97 @@ const requestOrientationPermission = useCallback(async () => {
 
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
+  // 버튼 누를 때: /queue/enter → (대기 필요 시 /queue/position 폴링) → 모달 오픈
+  async function openAiWithGate() {
+    const userId = getOrCreateUserId();
+    const qid = 'main'; // VIP 분기 쓰면 여기서 'vip'로
+    const group = 'predict';
+    try {
+      const r = await fetch(`/queue/enter?group=${group}&qid=${qid}&userId=${encodeURIComponent(userId)}`, { method: 'POST' });
+      if (!r.ok) throw new Error(await r.text());
+      const j = await r.json(); // { entered, position }
+
+      if (j.entered) {
+        setAiOpen(true);
+        return;
+      }
+      const pos = Number.isFinite(j.position) ? j.position : 0;
+      setAiQueuePos(pos);
+      setAiQueueOpen(true);
+    } catch (e) {
+      setAiWaiting(false);
+      setAiWaitingPos(null);
+      setAiOpen(false);
+      showMessage(e.message || '대기열 진입 실패');
+    }
+  }
+
+  const handleAiTimeout = useCallback((pos) => {
+    // pos가 0이면 바로 실행 가능하다는 뜻 → QueueModal 안 띄워도 됨
+    setAiQueuePos(Number.isFinite(pos) ? pos : 0);
+    setAiQueueOpen(pos > 0);
+  }, []);
+
+  useEffect(() => {
+    if (!aiQueueOpen) return;
+    let stop = false;
+    const userId = getOrCreateUserId();
+    const qid = 'main'; // VIP면 'vip'
+    (async function loop() {
+      while (!stop) {
+        try {
+          const r = await fetch(`/queue/position?group=predict&qid=${qid}&userId=${encodeURIComponent(userId)}`);
+          if (r.ok) {
+            const j = await r.json();
+            const p = typeof j.pos === 'number' ? j.pos : -1;
+            setAiQueuePos(p);
+            if (p <= 0) { setAiQueueOpen(false); setAiOpen(true); break; }
+          }
+        } catch {}
+        await new Promise(res => setTimeout(res, 1500));
+      }
+    })();
+    return () => { stop = true; };
+  }, [aiQueueOpen]);
+
+  // Leave predict queue when site/tab is closing or becomes hidden
+  useEffect(() => {
+    let sent = false;
+    const sendLeavePredict = () => {
+      if (sent) return; // prevent duplicate beacons
+      sent = true;
+      try {
+        const userId = getOrCreateUserId();
+        const enc = encodeURIComponent(userId);
+        const urls = [
+          `/queue/leave?group=predict&qid=main&userId=${enc}`,
+          `/queue/leave?group=predict&qid=vip&userId=${enc}`,
+        ];
+        if (navigator.sendBeacon) {
+          const data = new Blob([], { type: 'text/plain' });
+          urls.forEach(u => { try { navigator.sendBeacon(u, data); } catch {} });
+        } else {
+          urls.forEach(u => { try { fetch(u, { method: 'POST', keepalive: true }); } catch {} });
+        }
+      } catch {}
+    };
+
+    const onBeforeUnload = () => { sendLeavePredict(); };
+    const onPageHide     = () => { sendLeavePredict(); };
+    const onVisibility   = () => { if (document.visibilityState === 'hidden') sendLeavePredict(); };
+
+    window.addEventListener('beforeunload', onBeforeUnload);
+    window.addEventListener('pagehide', onPageHide);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      window.removeEventListener('pagehide', onPageHide);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, []);
+
+
+
   return (
     <>
     <BanlistNoticeModal
@@ -851,7 +948,7 @@ const requestOrientationPermission = useCallback(async () => {
           {/* AI 카드 판별 버튼: 검색창 아래 */}
           <button
             className="ai-button ai-button--mobile"
-            onClick={() => setAiOpen(true)}
+            onClick={openAiWithGate}
           >
             AI 카드 판별
           </button>
@@ -931,12 +1028,22 @@ const requestOrientationPermission = useCallback(async () => {
     
     <AICardRecognizerModal
       open={aiOpen}
-      onClose={() => setAiOpen(false)}
+      onClose={async () => {
+        // Modal 자체가 접속 qid 기준으로 leave 처리함
+        setAiOpen(false);
+      }}
       onPick={(card) => {
         // card: { imageUrl, frameType, name } 형태라고 가정
         addCardToDeck(card.imageUrl, card.frameType, card.name);
         setAiOpen(false);
       }}
+      onTimeout={(pos) => { setAiOpen(false); handleAiTimeout(pos); }}
+    />
+
+    <QueueModal
+      open={aiQueueOpen}
+      position={aiQueuePos}
+      onClose={() => setAiQueueOpen(false)}
     />
 
       {isExpanded && cardDetail && (
@@ -1026,7 +1133,7 @@ const requestOrientationPermission = useCallback(async () => {
           />
           <button
             className="ai-button ai-button--desktop"
-            onClick={() => setAiOpen(true)}
+            onClick={openAiWithGate}
           >
             AI 카드 판별
           </button>

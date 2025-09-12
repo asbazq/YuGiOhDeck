@@ -19,8 +19,8 @@ const app = isAdmin ? (
     <QueueApp>
       <Routes>
         <Route path="/admin/queue/:qid?" element={<QueueAdminPage />} />
-        <Route path="/limit" element={<QueueApp><LimitPage /></QueueApp>} />
-        <Route path="/" element={<QueueApp><App /></QueueApp>} />
+        <Route path="/limit" element={<LimitPage />} />
+        <Route path="/" element={<App />} />
       </Routes>
     </QueueApp>
   </BrowserRouter>

@@ -1,57 +1,62 @@
-import React, { useEffect, useState, useCallback, } from 'react';
+﻿import React, { useEffect, useState, useCallback } from 'react';
 import axios from 'axios';
-import { useParams, useNavigate  } from 'react-router-dom';
-import './styles/QueueAdminPage.css'
+import { useNavigate } from 'react-router-dom';
+import './styles/QueueAdminPage.css';
 
 export default function QueueAdminPage() {
   const navigate = useNavigate();
-  const { qid: routeQid } = useParams();
-  const [qid, setQid] = useState(routeQid || 'main');
-  useEffect(() => { setQid(routeQid || 'main'); }, [routeQid]);
-  const [throughput, setThroughput] = useState('');
-  const [ttl, setTtl] = useState('');
-  const [maxRunning, setMaxRunning] = useState('');
-  const [message, setMessage] = useState('');
 
+  // site
+  const [throughputSite, setThroughputSite] = useState('');
+  const [ttlSite, setTtlSite] = useState('');
+  // predict
+  const [throughputPredict, setThroughputPredict] = useState('');
+  const [ttlPredict, setTtlPredict] = useState('');
+  // 동시 실행 상한
+  const [capSite, setCapSite] = useState('');
+  const [capPredict, setCapPredict] = useState('');
+
+  const [message, setMessage] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
-  // ▼ 카드 패치 파라미터 (프론트에서 입력 받기)
+  // 패치 파라미터
   const [cardNum, setCardNum] = useState(500);
   const [cardOffset, setCardOffset] = useState(20);
-  const [cardSort, setCardSort] = useState('new');   // new | atk | def | name | type | level | id ...
+  const [cardSort, setCardSort] = useState('new');
   const [loadingApi, setLoadingApi] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);
   const [loadingLimit, setLoadingLimit] = useState(false);
   const [loadingKor, setLoadingKor] = useState(false);
 
-
-
   const loadConfig = useCallback(async () => {
     try {
-      const { data } = await axios.get(`/api/admin/queue/${encodeURIComponent(qid)}`);
-      setThroughput(data.throughput ?? '');
-      setTtl(data.sessionTtlMillis ?? '');
-      setMaxRunning(data.maxRunning ?? '');
+      const { data } = await axios.get('/api/admin/queue/all');
+      setThroughputSite(data.throughputSite ?? '');
+      setTtlSite(data.sessionTtlMillisSite ?? '');
+      setThroughputPredict(data.throughputPredict ?? '');
+      setTtlPredict(data.sessionTtlMillisPredict ?? '');
+      setCapSite(data.maxRunningSite ?? '');
+      setCapPredict(data.maxRunningPredict ?? '');
       setMessage('');
     } catch {
       setMessage('설정을 불러오지 못했습니다.');
     }
-  }, [qid]);
+  }, []);
 
   const updateConfig = async () => {
     try {
-      await axios.post(
-        `/api/admin/queue/${encodeURIComponent(qid)}`,
-        null,
-        {
-          params: {
-            throughput,
-            sessionTtlMillis: ttl,
-            maxRunning
-          }
-        }
-      );
+      const params = {};
+      if (throughputSite !== '') params.throughputSite = Number(throughputSite);
+      if (ttlSite !== '') params.sessionTtlMillisSite = Number(ttlSite);
+      if (throughputPredict !== '') params.throughputPredict = Number(throughputPredict);
+      if (ttlPredict !== '') params.sessionTtlMillisPredict = Number(ttlPredict);
+      if (capSite !== '') params.maxRunningSite = Number(capSite);
+      if (capPredict !== '') params.maxRunningPredict = Number(capPredict);
+
+      await axios.post('/api/admin/queue/all', null, { params });
       setMessage('저장되었습니다.');
+      // 최신값 다시 반영하고 싶으면 아래 주석 해제
+      // await loadConfig();
     } catch {
       setMessage('저장 실패');
     }
@@ -80,16 +85,15 @@ export default function QueueAdminPage() {
     setMessage('');
     try {
       const { data } = await axios.post('/api/admin/queue/fetchApiData', null, {
-      params: { all: true }, // ✅ 전체 카드 플래그만 보냄
-    });
+        params: { all: true },
+      });
       setMessage(`전체 카드 패치 시작 (요청: ${data?.requestedUrl ?? 'all'})`);
-    } catch (e) {
+    } catch {
       setMessage('전체 카드 패치 실패');
     } finally {
       setLoadingAll(false);
     }
   };
-
 
   const fetchLimitData = async () => {
     setLoadingLimit(true);
@@ -117,11 +121,11 @@ export default function QueueAdminPage() {
     }
   };
 
-useEffect(() => { loadConfig(); }, [qid]);
+  useEffect(() => { loadConfig(); }, [loadConfig]);
 
-return (
-  <>
-    <button
+  return (
+    <>
+      <button
         className="menu-button"
         onClick={() => setIsMenuOpen(true)}
         aria-label="메뉴 열기"
@@ -136,99 +140,103 @@ return (
 
       <div className={`side-menu ${isMenuOpen ? 'open' : ''}`}>
         <div className="board-switch">
-          <button
-            onClick={() => {
-              navigate('/limit');
-              setIsMenuOpen(false);
-              // trackEvent('view_limit_board', { board: 'limit' }); // 사용 중이면 주석 해제
-            }}
-          >
+          <button onClick={() => { navigate('/limit'); setIsMenuOpen(false); }}>
             리미트 레귤레이션
           </button>
-          <button
-            onClick={() => {
-              navigate('/');
-              setIsMenuOpen(false);
-              // trackEvent('switch_board', { board: 'deck' });
-            }}
-          >
+          <button onClick={() => { navigate('/'); setIsMenuOpen(false); }}>
             덱 빌딩
           </button>
-          <button
-            onClick={() => {
-              navigate('/admin/queue');
-              setIsMenuOpen(false);
-              // trackEvent('switch_board', { board: 'admin' });
-            }}
-          >
+          <button onClick={() => { navigate('/admin/queue'); setIsMenuOpen(false); }}>
             관리자
           </button>
         </div>
       </div>
 
-    <div className="pixel-admin-wrapper">
-      <div className="pixel-admin">
-        <h1>Queue Admin</h1>
+      <div className="pixel-admin-wrapper">
+        <div className="pixel-admin">
+          <h1>Queue Admin</h1>
 
-        <div className="row">
-          <label>
-            큐 ID:&nbsp;
-            <input
-              className="pixel-input"
-              value={qid}
-              onChange={e => setQid(e.target.value)}
-            />
-          </label>
-          
-        </div>
-
-        <div className="row">
-          <label>
-            throughput:&nbsp;
-            <input
-              type="number"
-              className="pixel-input"
-              value={throughput}
-              onChange={e => setThroughput(e.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="row">
-          <label>
-            sessionTtlMillis:&nbsp;
-            <input
-              type="number"
-              className="pixel-input"
-              value={ttl}
-              onChange={e => setTtl(e.target.value)}
-            />
-          </label>
-        </div>
-
-        <div className="row">
-          <label>
-            maxRunning:&nbsp;
-            <input
-              type="number"
-              className="pixel-input"
-              value={maxRunning}
-              onChange={e => setMaxRunning(e.target.value)}
-            />
-          </label>
-        </div>
-        <button className="pixel-btn" onClick={loadConfig}>
-            불러오기
-          </button>
-        <button className="pixel-btn" onClick={updateConfig}>
-          저장
-        </button>
-        {message && (
-          <div className="pixel-message">
-            {message}
+          {/* SITE 설정 */}
+          <div className="section-title">site</div>
+          <div className="row">
+            <label>
+              throughput (site):&nbsp;
+              <input
+                type="number"
+                className="pixel-input"
+                value={throughputSite}
+                onChange={e => setThroughputSite(e.target.value)}
+              />
+            </label>
           </div>
-        )}
-      </div>
+          <div className="row">
+            <label>
+              sessionTtlMillis (site):&nbsp;
+              <input
+                type="number"
+                className="pixel-input"
+                value={ttlSite}
+                onChange={e => setTtlSite(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {/* PREDICT 설정 */}
+          <div className="section-title">predict</div>
+          <div className="row">
+            <label>
+              throughput (predict):&nbsp;
+              <input
+                type="number"
+                className="pixel-input"
+                value={throughputPredict}
+                onChange={e => setThroughputPredict(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              sessionTtlMillis (predict):&nbsp;
+              <input
+                type="number"
+                className="pixel-input"
+                value={ttlPredict}
+                onChange={e => setTtlPredict(e.target.value)}
+              />
+            </label>
+          </div>
+
+          {/* 동시 실행 상한 */}
+          <div className="section-title">동시 실행 상한</div>
+          <div className="row">
+            <label>
+              max (site):&nbsp;
+              <input
+                type="number"
+                className="pixel-input"
+                value={capSite}
+                onChange={e => setCapSite(e.target.value)}
+              />
+            </label>
+          </div>
+          <div className="row">
+            <label>
+              max (predict):&nbsp;
+              <input
+                type="number"
+                className="pixel-input"
+                value={capPredict}
+                onChange={e => setCapPredict(e.target.value)}
+              />
+            </label>
+          </div>
+
+          <button className="pixel-btn" onClick={loadConfig}>불러오기</button>
+          <button className="pixel-btn" onClick={updateConfig}>저장</button>
+
+          {message && <div className="pixel-message">{message}</div>}
+        </div>
+
         <div className="fetch-button-container">
           <h1>패치</h1>
 

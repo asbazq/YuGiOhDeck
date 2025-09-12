@@ -27,48 +27,50 @@ public class QueueWebSocketHandler extends TextWebSocketHandler
         this.publisher = publisher;
     }
 
-    /* 연결 */
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        // 키는 클라이언트에서 설정되어 WebSocket URL의 query string으로 서버에 전달
-        String userId = UriComponentsBuilder.fromUri(session.getUri())
-                                            .build().getQueryParams()
-                                            .getFirst("userId");
+    if (session.getUri() == null) return;
+    var qs = UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams();
+    String group  = qs.getFirst("group");
+    String qid    = qs.getFirst("qid");
+    String userId = qs.getFirst("userId");
 
-        String qid = UriComponentsBuilder.fromUri(session.getUri())
-                                            .build().getQueryParams()
-                                            .getFirst("qid");
-
-        sessions.put(userId, session);
-        log.debug("WS OPEN qid={} userId={}", qid, userId);
+    String k = userKey(group, userId);
+    WebSocketSession old = sessions.put(k, session);
+    if (old != null && old.isOpen()) {
+        try { old.close(CloseStatus.NORMAL); } catch (Exception ignore) {}
+    }
+    log.debug("WS OPEN group={} qid={} userId={}", group, qid, userId);
     }
 
-    /* 종료 → 이벤트 발행 */
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        sessions.entrySet().removeIf(e -> e.getValue().equals(session));
-        String userId = session.getUri() != null
-                ? UriComponentsBuilder.fromUri(session.getUri()).build()
-                        .getQueryParams().getFirst("userId")
-                : "unknown";
-
-        String qid = session.getUri() != null
-                ? UriComponentsBuilder.fromUri(session.getUri()).build()
-                        .getQueryParams().getFirst("qid")
-                : "unknown";
-        log.debug("WS CLOSE qid={} userId={}", qid, userId);
-        publisher.publishEvent(new UserDisconnectedEvent(qid, userId));
+    String group = null, qid = null, userId = null;
+    if (session.getUri() != null) {
+        var qs = UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams();
+        group  = qs.getFirst("group");
+        qid    = qs.getFirst("qid");
+        userId = qs.getFirst("userId");
+        sessions.remove(userKey(group, userId));   // ★ 키로 제거
+    } else {
+        sessions.values().removeIf(s -> s.equals(session));
     }
+    log.debug("WS CLOSE group={} qid={} userId={}", group, qid, userId);
+    publisher.publishEvent(new UserDisconnectedEvent(group, qid, userId));
+    }
+
 
     /* 수신 메시지 처리 (PING → TTL 갱신) */
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         if ("PING".equalsIgnoreCase(message.getPayload())) {
+            String group = UriComponentsBuilder.fromUri(session.getUri())
+                                            .build().getQueryParams().getFirst("group");
             String userId = UriComponentsBuilder.fromUri(session.getUri())
                     .build().getQueryParams().getFirst("userId");
             String qid = UriComponentsBuilder.fromUri(session.getUri())
                     .build().getQueryParams().getFirst("qid");
-            publisher.publishEvent(new UserPingEvent(qid, userId));
+            publisher.publishEvent(new UserPingEvent(group, qid, userId));
         }
     }
 
@@ -80,8 +82,8 @@ public class QueueWebSocketHandler extends TextWebSocketHandler
     }
 
     @Override
-    public void sendToUser(String userId, String msg) {
-        WebSocketSession s = sessions.get(userId);
+    public void sendToUser(String group, String userId, String msg) {
+        WebSocketSession s = sessions.get(userKey(group, userId));
         if (s != null) sendSilently(s, msg);
     }
 
@@ -91,5 +93,9 @@ public class QueueWebSocketHandler extends TextWebSocketHandler
         } catch (Exception ex) { 
             log.warn("WS send fail {}", s.getId(), ex); 
         }
+    }
+
+    private static String userKey(String group, String userId) {
+        return group + "|" + userId;
     }
 }

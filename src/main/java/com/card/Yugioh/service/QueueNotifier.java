@@ -9,5 +9,5 @@ public interface QueueNotifier {
     void broadcast(String msg);
 
     /** 특정 사용자(userId)에게만 JSON 문자열 전송 */
-    void sendToUser(String userId, String msg);
+    void sendToUser(String group, String userId, String msg);
 }

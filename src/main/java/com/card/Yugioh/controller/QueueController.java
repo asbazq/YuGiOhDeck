@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.card.Yugioh.service.QueueService;
+import com.card.Yugioh.service.QueueService.QueueResponse;
+import com.card.Yugioh.service.QueueService.QueueStatus;
 
 import lombok.RequiredArgsConstructor;
 
@@ -17,24 +19,38 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class QueueController {
 
-    private final QueueService svc;
+    private final QueueService queueService;
 
     @PostMapping("/enter")
-    public QueueService.QueueResponse enter(@RequestParam String qid, @RequestParam("userId") String userId) {
-        return svc.enter(qid, userId);
+    public QueueResponse enter(@RequestParam String group,
+                           @RequestParam String qid,
+                           @RequestParam String userId) {
+        return queueService.enter(group, qid, userId);
     }
 
     @PostMapping("/leave")
-    public void leave(@RequestParam String qid, @RequestParam("userId") String userId) {
-        svc.leave(qid, userId);
+    public void leave(@RequestParam String group,
+                  @RequestParam String qid,
+                  @RequestParam String userId) {
+        queueService.leave(group, qid, userId);
+    }
+
+    @GetMapping("/position")
+    public Map<String, Long> position(@RequestParam String group,
+                           @RequestParam String qid,
+                           @RequestParam String userId) {
+        return queueService.queuePosition(group, qid, userId);
     }
 
     @GetMapping("/status")
-    public QueueService.QueueStatus status(@RequestParam String qid) { return svc.status(qid); }
+    public QueueStatus status(@RequestParam String group) {
+        return queueService.status(group);
+    };
 
-    @GetMapping("/position")
-    public Map<String, Long> QueuePosition(@RequestParam String qid, @RequestParam("userId") String userId) {
-        return svc.QueuePosition(qid, userId);
+    @GetMapping("/isRunning")
+    public Map<String, Object> isRunning(@RequestParam String group,
+                                        @RequestParam String qid,
+                                        @RequestParam String userId) {
+        return queueService.isRunning(group, qid, userId);
     }
-
 }
