@@ -7,6 +7,10 @@ build/
 application.properties
 src/main/resources/application.properties
 node_modules/
+docker-compose.yml
+Dockerfile
+wait-for.sh
+favicon.png
 # ...existing code...
 
 ### STS ###
