@@ -3,7 +3,6 @@ package com.card.Yugioh.model;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.checkerframework.common.aliasing.qual.Unique;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
@@ -27,9 +26,9 @@ public class CardModel {
     private Long id;
     @CreatedDate
     private LocalDateTime createdAt;
-    @Unique
+    @Column(unique = true)
     private String name;
-    @Unique
+    @Column(unique = true)
     private String korName;
     private String type;
     private String frameType;

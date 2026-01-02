@@ -11,10 +11,9 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 public class RedisConfig {
 
     @Bean
-    // RedisTemplate <?> 타입을 주입할 때 항상 이 빈이 선택
     @Primary
-    public RedisTemplate<String, String> redisTemplate(RedisConnectionFactory cf) {
-        RedisTemplate<String, String> t = new RedisTemplate<>();
+    public RedisTemplate<String, Object> redisTemplate(RedisConnectionFactory cf) {
+        RedisTemplate<String, Object> t = new RedisTemplate<>();
         t.setConnectionFactory(cf);
         t.setKeySerializer(new StringRedisSerializer());
         t.setValueSerializer(new StringRedisSerializer());
@@ -22,4 +21,5 @@ public class RedisConfig {
         t.setHashValueSerializer(new StringRedisSerializer());
         return t;
     }
+
 }

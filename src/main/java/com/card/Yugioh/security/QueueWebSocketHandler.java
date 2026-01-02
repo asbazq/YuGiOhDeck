@@ -15,7 +15,7 @@ import lombok.extern.slf4j.Slf4j;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-@Component
+@Component("queueWebSocketHandlerSecure")
 @Slf4j
 public class QueueWebSocketHandler extends TextWebSocketHandler
                                    implements QueueNotifier {

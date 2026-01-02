@@ -416,22 +416,31 @@ public class CardService {
                 .orElseThrow(() -> new IllegalArgumentException("해당 카드가 존재하지 않습니다."));
         }
 
-        String displayName = cardModel.getKorName() != null ?
-                cardModel.getKorName() : cardModel.getName();
+        String displayName = (cardModel.getKorName() != null && !cardModel.getKorName().isBlank())
+                ? cardModel.getKorName()
+                : Objects.toString(cardModel.getName(), ""); // Objects.toString(...) null-safe null 일 때 nullDefalut 반환
 
-        if (cardModel.getKorDesc() == null) {
-            korDesc = cardModel.getDesc();
-        } else {
-            korDesc = cardModel.getKorDesc();
-        }
+        korDesc = Objects.toString(
+                (cardModel.getKorDesc() == null ? cardModel.getDesc() : cardModel.getKorDesc()),
+                ""
+        );
         String enRace = cardModel.getRace();
         RaceEnum korRace = RaceEnum.fromEnglishName(enRace);
-        LimitRegulation limit = limitRegulationRepository
-                .findTopByCardNameIn(List.of(cardModel.getName(), cardModel.getKorName()))
-                .orElse(null);
+        String raceKo = (korRace != null) ? korRace.getRace() : Objects.toString(enRace, "");
+        List<String> candidates = new ArrayList<>(2);
+        if (cardModel.getName() != null && !cardModel.getName().isBlank()) {
+            candidates.add(cardModel.getName());
+        }
+        if (cardModel.getKorName() != null && !cardModel.getKorName().isBlank()) {
+            candidates.add(cardModel.getKorName());
+        }
+
+        LimitRegulation limit = candidates.isEmpty()
+                ? null
+                : limitRegulationRepository.findTopByCardNameIn(candidates).orElse(null);
 
         String restrictionType = (limit != null) ? limit.getRestrictionType() : "unlimited";
-        return new CardInfoDto(displayName, korDesc, korRace.getRace(), restrictionType);
+        return new CardInfoDto(displayName, korDesc, raceKo, restrictionType);
     }
 
     // 리미티드 레귤레이션 크롤링

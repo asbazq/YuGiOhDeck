@@ -8,7 +8,7 @@ export default function BanlistNotice({
   onClose,
   changes: externalChanges,
   getThumbUrl,
-  endpoint = '/cards/limit/notice',
+  endpoint = '/cards/notice',
 }) {
   const K = {
     forbidden: '금지로 지정된 카드',
@@ -41,7 +41,7 @@ export default function BanlistNotice({
       setLoading(true);
       setErr('');
 
-      const url = 'https://no86.xyz:8082/cards/notice';
+      const url = /^https?:\/\//i.test(endpoint) ? endpoint : (endpoint.startsWith('/') ? endpoint : `/${endpoint}`);
       console.log('[BanlistNotice] GET', url);
 
       try {

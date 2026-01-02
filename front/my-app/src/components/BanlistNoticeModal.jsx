@@ -24,7 +24,7 @@ export default function BanlistNoticeModal({ open, onClose, getThumbUrl }) {
            open={open}
            onClose={onClose}
            getThumbUrl={getThumbUrl}
-           endpoint="/cards/limit/notice"
+           endpoint="/cards/notice"
          />
         </div>
       </div>

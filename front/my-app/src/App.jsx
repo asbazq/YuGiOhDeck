@@ -31,6 +31,27 @@ import { localImagePath, filenameOf } from './common/imagePath';
 import alertCard from './img/black-magician-girl-card-8bit.png';
 import konamiGif from './img/1750263964.gif';
 
+const b64urlDec = (s) => {
+  s = s.replace(/-/g,'+').replace(/_/g,'/');
+  while (s.length % 4) s += '=';
+  const bin = atob(s);
+  return Uint8Array.from(bin, c => c.charCodeAt(0));
+};
+
+const decodeDeckToken = (token) => {
+  try { // 새 포맷: deflateRaw + base64url
+    return pako.inflateRaw(b64urlDec(token), { to: 'string' });
+  } catch {}
+  try { // 레거시: deflate(zlib) + base64 (공백→'+' 보정)
+    const legacy = token.replace(/ /g, '+');
+    const bin = atob(legacy);
+    const u8 = new Uint8Array([...bin].map(ch => ch.charCodeAt(0)));
+    return pako.inflate(u8, { to: 'string' });
+  } catch {}
+  throw new Error('Invalid deck token');
+};
+
+
 const EXTRA_FRAMES = new Set([
   'link','fusion','synchro','xyz',
   'xyz_pendulum','synchro_pendulum','fusion_pendulum'
@@ -265,14 +286,26 @@ useEffect(() => {
   }, [hasMoreResults, isLoading, isMobile]);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const deck = params.get('deck');
+  //   const params = new URLSearchParams(window.location.search);
+  //   const deck = params.get('deck');
 
-    if (deck && /^[a-zA-Z0-9+/=]*$/.test(deck)) {
+  //   if (deck && /^[a-zA-Z0-9+/=]*$/.test(deck)) {
+  //     try {
+  //       const compressed = atob(deck);
+  //       const compressedData = new Uint8Array(compressed.split('').map(char => char.charCodeAt(0)));
+  //       const dataStr = pako.inflate(compressedData, { to: 'string' });
+  //       const dataObj = JSON.parse(dataStr);
+  //       setMainDeck(sortCards(dataObj.cardsContent || []));
+  //       setExtraDeck(sortCards(dataObj.extraDeckContent || []));
+  //     } catch (error) {
+  //       console.error('Error during deck loading:', error);
+  //     }
+  //   }
+    const params = new URLSearchParams(window.location.search);
+    const deckTok = params.get('deck');
+    if (deckTok) {
       try {
-        const compressed = atob(deck);
-        const compressedData = new Uint8Array(compressed.split('').map(char => char.charCodeAt(0)));
-        const dataStr = pako.inflate(compressedData, { to: 'string' });
+        const dataStr = decodeDeckToken(deckTok);     // ✅ 새/구 포맷 모두 대응
         const dataObj = JSON.parse(dataStr);
         setMainDeck(sortCards(dataObj.cardsContent || []));
         setExtraDeck(sortCards(dataObj.extraDeckContent || []));

@@ -28,7 +28,8 @@ public class QueueService {
 
     private static final String RUNNING_PREFIX = "running:";
     private static final String WAITING_PREFIX = "waiting:";
-    public static final long VIP_PRIORITY_BONUS = 30_000L;
+    public static final long VIP_PRIORITY_BONUS = 3_000_000L;
+    private static final int VIP_STREAK_LIMIT = 3;
 
     private final ObjectMapper om = new ObjectMapper();
 
@@ -38,38 +39,58 @@ public class QueueService {
         this.notifier = notifier;
     }
 
-    /* ======================= 입장 ======================= */
+    /* ======================= 입장 (Lua 원자화) ======================= */
+    /**
+     * enter()는 자리 판단 → 즉시입장/대기삽입 → 절대순번 계산까지
+     * 단일 Lua(EVAL)로 처리하여 레이스 윈도우 제거
+     */
     public QueueResponse enter(String group, String qid, String user) {
-        String runKey  = runKey(group, qid);
-        String waitKey = waitKey(group, qid);
+        final String vipRun  = runKey(group, "vip");
+        final String mainRun = runKey(group, "main");
+        final String runKey  = runKey(group, qid);
+        final String vipWait = waitKey(group, "vip");
+        final String mainWait= waitKey(group, "main");
+        final String cfgKey  = cfgKey(group);
+        final String seqKey  = "seq:{" + group + "}";
 
-        if (redis.opsForZSet().score(runKey, user) != null)
-            return entered();
+        long now = System.currentTimeMillis();
+        int  fallbackMax = Math.max(1, maxRunning(group));
+        boolean isVip = "vip".equals(qid);
 
-        // 공정성: 대기열이 존재하면 바로 running 으로 입장하지 않고 대기열에 넣는다
-        long totalWaiting = size(waitKey(group, "vip")) + size(waitKey(group, "main"));
-        boolean hasWaiting = totalWaiting > 0;
+        @SuppressWarnings("unchecked")
+        List<Object> res = (List<Object>) redis.execute(
+            enterScript,
+            List.of(vipRun, mainRun, runKey, vipWait, mainWait, cfgKey, seqKey),
+            String.valueOf(now),
+            String.valueOf(fallbackMax),
+            user,
+            isVip ? "1" : "0",
+            String.valueOf(VIP_PRIORITY_BONUS)
+        );
 
-        if (totalRunningSize(group) < maxRunning(group) && !hasWaiting) {
-            redis.opsForZSet().add(runKey, user, Instant.now().toEpochMilli());
+        // 실패/비정상 방어
+        if (res == null || res.size() < 2) {
+            // 안전하게 대기 취급하고 상태 갱신
             broadcastStatus(group, qid);
-            if ("vip".equals(qid)) broadcastStatus(group, "main");
-            return entered();
+            if (isVip) broadcastStatus(group, "main");
+            return waiting(-1);
         }
-        double score = enqScore(group, "vip".equals(qid));
-        redis.opsForZSet().add(waitKey, user, score);
+
+        String state = String.valueOf(res.get(0)); // "entered" | "waiting"
+        long pos = 0;
+        try {
+            pos = Long.parseLong(String.valueOf(res.get(1)));
+        } catch (Exception ignore) {}
+
+        // 입장/대기 상태에 따라 브로드캐스트
         broadcastStatus(group, qid);
-        if ("vip".equals(qid)) broadcastStatus(group, "main");
+        if (isVip) broadcastStatus(group, "main");
 
-        return waiting(absolutePosition(group, qid, user));
-    }
-
-    private double enqScore(String group, boolean isVip) {
-        long now = System.currentTimeMillis();                   // ms
-        Long seq = redis.opsForValue().increment("seq:{" + group + "}", 1); // 단조 증가
-        long micro = now * 1000L + ((seq != null ? seq : 0L) % 1000L);     // ms + 소수점
-        long vipBias = isVip ? VIP_PRIORITY_BONUS : 0L;  // VIP는 선행 (미세단위와 일관되게)
-        return (double) (micro - vipBias);
+        if ("entered".equals(state)) {
+            return entered();
+        } else {
+            return waiting(pos);
+        }
     }
 
     /* ======================= 퇴장 ======================= */
@@ -129,7 +150,6 @@ public class QueueService {
     public Map<String, Object> isRunning(String group, String qid, String userId) {
         boolean running = (redis.opsForZSet().score(runKey(group, qid), userId) != null);
         long pos = running ? 0L : absolutePosition(group, qid, userId);
-        // Map.of는 제네릭 타입 맞춰야함 (String,Object)
         return Map.of("running", running, "pos", pos);
     }
 
@@ -146,7 +166,7 @@ public class QueueService {
     /* ===================== Lua 승격 스크립트 ==================== */
     private static final String LUA_PROMOTE_WITH_CAP = """
     -- KEYS: 1 vipWaitKey, 2 mainWaitKey, 3 vipRunKey, 4 mainRunKey, 5 targetRunKey, 6 configKey
-    -- ARGV: 1 nowMs, 2 fallbackMaxRunning
+    -- ARGV: 1 nowMs, 2 fallbackMaxRunning, 3 vipStreakLimit
     local vipWaitKey   = KEYS[1]
     local mainWaitKey  = KEYS[2]
     local vipRunKey    = KEYS[3]
@@ -156,23 +176,36 @@ public class QueueService {
 
     local nowMs  = tonumber(ARGV[1])
     local fmax   = tonumber(ARGV[2]) or 1
+    local limit  = tonumber(ARGV[3]) or 3
 
     local m = redis.call('HGET', configKey, 'maxRunning')
     local maxRunning = tonumber(m) or fmax
     if not maxRunning or maxRunning < 1 then maxRunning = 1 end
 
     local function totalRunning()
-    return (redis.call('ZCARD', vipRunKey) or 0) + (redis.call('ZCARD', mainRunKey) or 0)
+      return (redis.call('ZCARD', vipRunKey) or 0) + (redis.call('ZCARD', mainRunKey) or 0)
     end
 
     if totalRunning() >= maxRunning then
-    return nil
+      return nil
     end
 
-    -- target이 vip면 VIP 대기 우선, main이면 MAIN 대기 우선
+    -- 연속 VIP 카운터 읽기 (없으면 0)
+    local vipStreak = tonumber(redis.call('HGET', configKey, 'vip_streak')) or 0
+
+    -- 기본 우선 순위: targetRunKey가 vip면 vip 대기 우선, main이면 main 대기 우선
     local primaryWait   = (targetRunKey == vipRunKey) and vipWaitKey  or mainWaitKey
     local secondaryWait = (targetRunKey == vipRunKey) and mainWaitKey or vipWaitKey
 
+    local waitVip  = redis.call('ZCARD', vipWaitKey)  or 0
+    local waitMain = redis.call('ZCARD', mainWaitKey) or 0
+
+    -- ★ 연속 VIP 제한: VIP 슬롯에 넣는 상황에서 vipStreak가 limit 이상이면 main을 우선 pop
+    if (targetRunKey == vipRunKey) and (vipStreak >= limit) and (waitMain > 0) then
+    primaryWait, secondaryWait = mainWaitKey, vipWaitKey
+    end
+
+    -- pop
     local popped = redis.call('ZPOPMIN', primaryWait, 1)
     if (not popped) or (#popped == 0) then
     popped = redis.call('ZPOPMIN', secondaryWait, 1)
@@ -183,12 +216,108 @@ public class QueueService {
 
     local uid = popped[1]
     redis.call('ZADD', targetRunKey, nowMs, uid)
+
+    -- ★ streak 업데이트:
+    --   - VIP 슬롯으로 승격했는데 primary가 vip였다 → 연속 VIP +1
+    --   - VIP 슬롯인데 primary가 main이었다(강제 끼워넣기) → streak 0으로 리셋
+    --   - main 슬롯으로 승격 → streak 0으로 리셋
+    if targetRunKey == vipRunKey then
+    if primaryWait == vipWaitKey then
+        redis.call('HINCRBY', configKey, 'vip_streak', 1)
+    else
+        redis.call('HSET',    configKey, 'vip_streak', 0)
+    end
+    else
+    redis.call('HSET',      configKey, 'vip_streak', 0)
+    end
     return uid
     """;
 
-
     private final RedisScript<String> promoteScript =
             new DefaultRedisScript<>(LUA_PROMOTE_WITH_CAP, String.class);
+
+    /* ===================== Lua 입장 스크립트 ==================== */
+    /**
+     * 반환: {"entered","0"} 또는 {"waiting","<pos>"}
+     * - 공정성: 대기 총합>0이면 즉시입장 금지
+     * - 이미 대기 중인 사용자는 점수 유지(FIFO)
+     * - 절대 순번: main 대기는 VIP 대기 수를 앞에 더함
+     */
+    private static final String LUA_ENTER = """
+    -- KEYS: 1 vipRunKey, 2 mainRunKey, 3 targetRunKey, 4 vipWaitKey, 5 mainWaitKey, 6 configKey, 7 seqKey
+    -- ARGV: 1 nowMs, 2 fallbackMaxRunning, 3 userId, 4 isVip(0/1), 5 vipBias
+
+    local vipRunKey    = KEYS[1]
+    local mainRunKey   = KEYS[2]
+    local targetRunKey = KEYS[3]
+    local vipWaitKey   = KEYS[4]
+    local mainWaitKey  = KEYS[5]
+    local configKey    = KEYS[6]
+    local seqKey       = KEYS[7]
+
+    local nowMs   = tonumber(ARGV[1])
+    local fmax    = tonumber(ARGV[2]) or 1
+    local uid     = ARGV[3]
+    local isVip   = tonumber(ARGV[4]) == 1
+    local vipBias = tonumber(ARGV[5]) or 0
+
+    local function maxRunning()
+      local m = redis.call('HGET', configKey, 'maxRunning')
+      local v = tonumber(m) or fmax
+      if not v or v < 1 then v = 1 end
+      return v
+    end
+
+    local function totalRunning()
+      return (redis.call('ZCARD', vipRunKey) or 0) + (redis.call('ZCARD', mainRunKey) or 0)
+    end
+
+    -- 0) 이미 running이면 즉시 완료
+    if redis.call('ZSCORE', targetRunKey, uid) then
+      return { "entered", "0" }
+    end
+
+    -- 1) 전체 대기 수
+    local waitVip  = redis.call('ZCARD', vipWaitKey)  or 0
+    local waitMain = redis.call('ZCARD', mainWaitKey) or 0
+    local totalWait = waitVip + waitMain
+
+    -- 2) 대기 없고 cap 남아있으면 즉시 입장
+    if totalWait == 0 and totalRunning() < maxRunning() then
+      redis.call('ZADD', targetRunKey, nowMs, uid)
+      return { "entered", "0" }
+    end
+
+    -- 3) 대기 삽입 (이미 어느 대기열에 있으면 기존 점수 유지)
+    local inVip  = redis.call('ZSCORE', vipWaitKey,  uid)
+    local inMain = redis.call('ZSCORE', mainWaitKey, uid)
+
+    local targetWaitKey = isVip and vipWaitKey or mainWaitKey
+    if (not inVip) and (not inMain) then
+      local seq = redis.call('INCR', seqKey)
+      local micro = nowMs * 1000 + (seq % 1000)
+      local score = isVip and (micro - vipBias) or micro
+      redis.call('ZADD', targetWaitKey, 'NX', score, uid)
+    else
+      targetWaitKey = inVip and vipWaitKey or mainWaitKey
+    end
+
+    -- 4) 절대 순번 계산 (main은 VIP 대기 수 보정)
+    local r = redis.call('ZRANK', targetWaitKey, uid)
+    if not r then
+      return { "waiting", "-1" }
+    end
+    local localRank = r + 1
+    if targetWaitKey == mainWaitKey then
+      return { "waiting", tostring(waitVip + localRank) }
+    else
+      return { "waiting", tostring(localRank) }
+    end
+    """;
+
+    @SuppressWarnings("rawtypes")
+    private final RedisScript<List> enterScript =
+            new DefaultRedisScript<>(LUA_ENTER, List.class);
 
     /* ===================== 내부 로직 ==================== */
     private void promoteNextUser(String group, String qid) {
@@ -205,7 +334,7 @@ public class QueueService {
         String uid = redis.execute(
                 promoteScript,
                 List.of(vipWait, mainWait, vipRun, mainRun, targetRun, config),
-                now, String.valueOf(fallbackMax)
+                now, String.valueOf(fallbackMax), String.valueOf(VIP_STREAK_LIMIT)
         );
 
         if (uid != null && !uid.isBlank()) {
@@ -253,7 +382,6 @@ public class QueueService {
     }
 
     private long totalRunningSize(String group) {
-        // 그룹 내에서만 합산 (KEEYS 제거)
         return size(runKey(group, "vip")) + size(runKey(group, "main"));
     }
 
