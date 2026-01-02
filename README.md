@@ -321,6 +321,63 @@ public void runCrawl() {
 * UI/UX 개선 인사이트 수집
 
 ---
+# erd
+
+```mermaid
+erDiagram
+  CARD_MODEL {
+    BIGINT id PK
+    DATETIME createdAt
+    VARCHAR name
+    VARCHAR korName
+    VARCHAR type
+    VARCHAR frameType
+    VARCHAR desc
+    VARCHAR korDesc
+    INT atk
+    INT def
+    INT level
+    VARCHAR race
+    VARCHAR attribute
+    VARCHAR archetype
+    VARCHAR nameNormalized
+    VARCHAR korNameNormalized
+    BOOLEAN hasKorName
+    BOOLEAN hasKorDesc
+  }
+
+  CARD_IMAGE {
+    BIGINT id PK
+    VARCHAR imageUrl
+    VARCHAR imageUrlSmall
+    VARCHAR imageUrlCropped
+    BIGINT cardModel FK
+  }
+
+  LIMIT_REGULATION {
+    BIGINT id PK
+    VARCHAR cardName
+    VARCHAR restrictionType
+  }
+
+  LIMIT_REGULATION_CHANGE_BATCH {
+    BIGINT id PK
+  }
+
+  LIMIT_REGULATION_CHANGE {
+    BIGINT id PK
+    VARCHAR cardName
+    VARCHAR oldType
+    VARCHAR newType
+    BIGINT batch_id FK
+  }
+
+  CARD_MODEL ||--o{ CARD_IMAGE : has
+  LIMIT_REGULATION_CHANGE_BATCH ||--o{ LIMIT_REGULATION_CHANGE : includes
+
+```
+
+---
 
 ## 디자인
 
