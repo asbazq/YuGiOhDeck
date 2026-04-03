@@ -2,13 +2,28 @@
 import '../styles/BanlistNotice.css';
 
 const PLACEHOLDER = '/back_image/101206057.jpg';
-const LIMIT_NUM = { forbidden: 0, limited: 1, semilimited: 2, unlimited: 3 };
 const SECTION_LABELS = {
   forbidden: '금지로 지정된 카드',
   limited: '제한으로 변경되는 카드',
   semilimited: '준제한으로 변경되는 카드',
   unlimited: '매수 제한이 해제되는 카드',
 };
+
+function LimitMark({ type, tone }) {
+  const markClass = type === 'forbidden' ? 'is-forbidden' : '';
+  const markText =
+    type === 'limited' ? '1' : type === 'semilimited' ? '2' : type === 'unlimited' ? '3' : '';
+
+  return (
+    <span
+      className={`limit-mark ${tone} ${markClass}`}
+      aria-label={type}
+      title={type}
+    >
+      {markText}
+    </span>
+  );
+}
 
 export default function BanlistNotice({
   open = true,
@@ -105,8 +120,6 @@ export default function BanlistNotice({
           {list.map((change, index) => {
             const displayName = change.kor_name || change.korName || change.name || change.cardName;
             const fromType = change.fromType ?? 'unlimited';
-            const fromN = LIMIT_NUM[fromType];
-            const toN = LIMIT_NUM[change.toType];
             const thumb =
               change.thumbUrl ||
               change.imageUrlSmall ||
@@ -117,9 +130,9 @@ export default function BanlistNotice({
             return (
               <div className="ban-card" key={`${displayName}-${index}`}>
                 <div className="ban-card__badges">
-                  <span className={`badge from n${fromN}`}>{fromN}</span>
+                  <LimitMark type={fromType} tone="from" />
                   <span className="arrow" aria-hidden="true">→</span>
-                  <span className={`badge to n${toN}`}>{toN}</span>
+                  <LimitMark type={change.toType} tone="to" />
                 </div>
                 <div className="ban-card__thumb-wrap">
                   <img

@@ -1,26 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { trackEvent, sendPageView } from '../utils/analytics';
 import LimitBoard from '../components/LimitBoard';
 import alertCard from '../img/black-magician-girl-card-8bit.png';
-import '../styles/Message.css';
 import '../styles/LimitBoard.css';
-import '../styles/Menu.css';
-import '../styles/Button.css';
-import '../styles/DeckCard.css';
 
 function LimitPage() {
   const [message, setMessage] = useState('');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const navigate = useNavigate();
+  const messageTimerRef = useRef(null);
 
   useEffect(() => {
     sendPageView(window.location.pathname);
+
+    return () => {
+      if (messageTimerRef.current) {
+        window.clearTimeout(messageTimerRef.current);
+      }
+    };
   }, []);
 
   const showMessage = (msg) => {
     setMessage(msg);
-    setTimeout(() => setMessage(''), 2300);
+    if (messageTimerRef.current) {
+      window.clearTimeout(messageTimerRef.current);
+    }
+    messageTimerRef.current = window.setTimeout(() => {
+      setMessage('');
+      messageTimerRef.current = null;
+    }, 2300);
   };
 
   return (

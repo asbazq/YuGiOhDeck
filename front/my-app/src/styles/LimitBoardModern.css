@@ -1,0 +1,322 @@
+.limit-page-modern {
+  min-height: 100vh;
+  padding: 28px;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  color: #111111;
+}
+
+.limit-page-modern__toast {
+  position: fixed;
+  top: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  border: 2px solid #111111;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 12px 18px;
+  box-shadow: 0 10px 24px rgba(20, 20, 24, 0.12);
+  font-weight: 700;
+}
+
+.limit-page-modern__shell {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.limit-page-modern__hero,
+.limit-board-modern__header,
+.limit-board-modern__toolbar,
+.limit-board-modern__panel,
+.limit-board-modern__pad-panel {
+  border: 1px solid rgba(31, 31, 35, 0.12);
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 18px 44px rgba(20, 20, 24, 0.08);
+  border-radius: 28px;
+}
+
+.limit-page-modern__hero {
+  position: sticky;
+  top: 24px;
+  padding: 28px;
+}
+
+.limit-page-modern__eyebrow,
+.limit-board-modern__label {
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #111111;
+}
+
+.limit-page-modern__title {
+  margin: 12px 0 10px;
+  font-size: clamp(2rem, 3vw, 3.1rem);
+  line-height: 0.96;
+}
+
+.limit-page-modern__description,
+.limit-board-modern__intro p,
+.limit-board-modern__pad-panel p,
+.limit-page-modern__note p {
+  margin: 0;
+  color: #5f5f66;
+  line-height: 1.6;
+}
+
+.limit-page-modern__nav {
+  display: grid;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.limit-page-modern__nav-button,
+.limit-board-modern__tab,
+.limit-board-modern__stat,
+.limit-board-modern__toggle,
+.pad-button,
+.limit-board-modern__ab-button,
+.queue-admin-modern__button {
+  appearance: none;
+  border: 2px solid #111111;
+  border-radius: 14px;
+  background: #d9d9de;
+  color: #111111;
+  font: inherit;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #111111;
+  transition: transform 0.12s ease, box-shadow 0.12s ease, background-color 0.12s ease;
+}
+
+.limit-page-modern__nav-button {
+  padding: 12px 14px;
+  text-transform: uppercase;
+}
+
+.limit-page-modern__nav-button.is-active,
+.limit-board-modern__tab.is-active,
+.limit-board-modern__stat.is-active {
+  background: #bfc4cc;
+  transform: translateY(5px);
+  box-shadow: 0 0 0 #111111;
+}
+
+.limit-page-modern__note {
+  margin-top: 24px;
+  padding: 18px;
+  border: 1px solid rgba(31, 31, 35, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.limit-page-modern__note strong {
+  display: block;
+  margin-bottom: 10px;
+}
+
+.limit-page-modern__content {
+  min-width: 0;
+}
+
+.limit-board-modern {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 20px;
+}
+
+.limit-board-modern__header,
+.limit-board-modern__toolbar,
+.limit-board-modern__panel {
+  grid-column: 1 / 2;
+}
+
+.limit-board-modern__header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 18px;
+  padding: 24px;
+}
+
+.limit-board-modern__intro h2 {
+  margin: 8px 0 10px;
+  font-size: 1.8rem;
+}
+
+.limit-board-modern__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 24px;
+}
+
+.limit-board-modern__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.limit-board-modern__tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+}
+
+.limit-board-modern__tab span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(17, 17, 17, 0.08);
+}
+
+.limit-board-modern__meta {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  color: #5f5f66;
+}
+
+.limit-board-modern__meta strong {
+  color: #111111;
+}
+
+.limit-board-modern__panel {
+  padding: 24px;
+}
+
+.limit-board-modern__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  gap: 18px 14px;
+}
+
+#limitBoard .search-result-item {
+  width: auto;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid rgba(31, 31, 35, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.98);
+  transition: transform 0.14s ease, box-shadow 0.14s ease;
+}
+
+#limitBoard .search-result-item:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 28px rgba(20, 20, 24, 0.1);
+}
+
+#limitBoard .search-result-item img {
+  width: 100%;
+  height: auto;
+  border-radius: 14px;
+}
+
+#limitBoard .search-result-item p {
+  margin: 10px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+#limitBoard .search-result-item .restriction-label {
+  font-size: 0.95rem;
+}
+
+.limit-board-modern__empty {
+  padding: 32px 20px;
+  text-align: center;
+  color: #5f5f66;
+}
+
+.limit-board-modern__pad-panel {
+  grid-column: 2 / 3;
+  grid-row: 1 / span 3;
+  position: sticky;
+  top: 24px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.limit-board-modern__pad-panel h3 {
+  margin: 8px 0 10px;
+}
+
+.limit-board-modern__toggle {
+  padding: 12px 14px;
+}
+
+.limit-board-modern__pad-wrap {
+  display: grid;
+  gap: 18px;
+}
+
+.limit-board-modern__pad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.pad-button,
+.limit-board-modern__ab-button {
+  min-height: 52px;
+  padding: 0;
+}
+
+.pad-button.up { grid-column: 2; grid-row: 1; }
+.pad-button.left { grid-column: 1; grid-row: 2; }
+.pad-button.center { grid-column: 2; grid-row: 2; }
+.pad-button.right { grid-column: 3; grid-row: 2; }
+.pad-button.down { grid-column: 2; grid-row: 3; }
+
+.limit-board-modern__ab {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+@media (max-width: 1180px) {
+  .limit-page-modern__shell,
+  .limit-board-modern {
+    grid-template-columns: 1fr;
+  }
+
+  .limit-page-modern__hero,
+  .limit-board-modern__pad-panel {
+    position: static;
+  }
+
+  .limit-board-modern__header,
+  .limit-board-modern__toolbar,
+  .limit-board-modern__panel,
+  .limit-board-modern__pad-panel {
+    grid-column: auto;
+    grid-row: auto;
+  }
+}
+
+@media (max-width: 760px) {
+  .limit-page-modern {
+    padding: 18px;
+  }
+
+  .limit-board-modern__header {
+    grid-template-columns: 1fr;
+  }
+
+  .limit-board-modern__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

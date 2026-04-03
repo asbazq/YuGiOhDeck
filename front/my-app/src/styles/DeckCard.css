@@ -20,7 +20,8 @@
     z-index: 1;
     perspective: 1000px;
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    transition: transform 0.3s ease-out, top 0.3s ease-out, left 0.3s ease-out;
+    transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1), top 0.34s cubic-bezier(0.22, 1, 0.36, 1), left 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+    will-change: transform, top, left;
 }
 
 .card-container:hover {
@@ -123,17 +124,15 @@
     background:#bcbcbc;
 }
 .expanded{
-    transform:scale(4);
     z-index:90;
     position:fixed;
-    top:50%;left:41%;
+    top:50%;
+    left:50%;
 }
 
 @media (max-width: 768px) {
     .expanded{
-        transform:scale(3);
-        left: 50%;
-        top: 45%;
+        z-index:90;
     }
 }
 
@@ -147,6 +146,12 @@
     z-index:80;
     display:none;
     pointer-events:auto;
+    opacity:0;
+    transition: opacity 0.28s ease;
+}
+
+.expanded-overlay.is-visible{
+    opacity:1;
 }
 
 @media (max-width: 480px) {

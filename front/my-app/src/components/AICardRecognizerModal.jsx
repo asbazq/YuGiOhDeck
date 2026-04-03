@@ -395,7 +395,7 @@ const AICardRecognizerModal = ({ open, onClose, onPick, onTimeout }) => {
         <div className="ai-modal-body">
           <div className="ai-upload-row">
             <input type="file" accept="image/*" onChange={onFile} className="ai-file-input" />
-            <button className="ai-btn" onClick={enqueueCurrent} disabled={!file || busy}>Predict (Queue)</button>
+            <button className="ai-btn" onClick={enqueueCurrent} disabled={!file || busy}>Predict</button>
           </div>
 
           {error && <div className="ai-error">{error}</div>}

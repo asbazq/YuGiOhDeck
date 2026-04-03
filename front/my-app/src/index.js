@@ -2,33 +2,25 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles/index.css';
 import App from './App';
-import QueueAdminPage from './QueueAdminPage';
+import QueueAdminPage from './QueueAdminPageModern';
 import QueueApp from './components/QueueApp';
 import reportWebVitals from './reportWebVitals';
-import LimitPage from './components/LimitPage';
+import LimitPage from './components/LimitPageModern';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 
-const isAdmin = window.location.pathname.startsWith('/admin/queue');
-
-const app = isAdmin ? (
-  <QueueAdminPage />
-) : (
-  <BrowserRouter>
-    <QueueApp>
-      <Routes>
-        <Route path="/admin/queue/:qid?" element={<QueueAdminPage />} />
-        <Route path="/limit" element={<LimitPage />} />
-        <Route path="/" element={<App />} />
-      </Routes>
-    </QueueApp>
-  </BrowserRouter>
-);
-
 root.render(
   <React.StrictMode>
-    {app}
+    <BrowserRouter>
+      <QueueApp>
+        <Routes>
+          <Route path="/admin/queue/:qid?" element={<QueueAdminPage />} />
+          <Route path="/limit" element={<LimitPage />} />
+          <Route path="/" element={<App />} />
+        </Routes>
+      </QueueApp>
+    </BrowserRouter>
   </React.StrictMode>
 );
 
