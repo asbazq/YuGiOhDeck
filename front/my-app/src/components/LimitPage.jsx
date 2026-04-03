@@ -7,6 +7,7 @@ import '../styles/Message.css';
 import '../styles/LimitBoard.css';
 import '../styles/Menu.css';
 import '../styles/Button.css';
+import '../styles/DeckCard.css';
 
 function LimitPage() {
   const [message, setMessage] = useState('');

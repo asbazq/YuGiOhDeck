@@ -44,9 +44,12 @@ out/
 ### VS Code ###
 .vscode/
 src/main/resources/application.properties
+src/test/resources/application-test.properties
+
 
 # Node dependencies
 node_modules/
+build-verify/
 
 # npm cache
 .npm-cache/

@@ -4,11 +4,13 @@ import AICardRecognizerModal from './components/AICardRecognizerModal';
 import BanlistNoticeModal from './components/BanlistNoticeModal';
 import DeckCard from './components/DeckCard';
 import OrientationModal from './components/OrientationModal';
+import blackMagicianGirlCard from './img/black-magician-girl-card-8bit.png';
 import './App.css';
 import './styles/DeckCard.css';
 
 const PAGE_SIZE = 28;
 const BANLIST_NOTICE_KEY = 'banlist_notice_hidden_until';
+const DUMMY_DATA_KEY = 'deck_builder_dummy_data_enabled';
 const EXTRA_DECK_FRAMES = new Set([
   'fusion',
   'fusion_pendulum',
@@ -33,11 +35,34 @@ const RESTRICTION_CLASS = {
   unlimited: 'is-unlimited',
 };
 
+const DUMMY_CARD = {
+  id: 'dummy-card-1',
+  imageUrl: blackMagicianGirlCard,
+  frameType: 'normal',
+  name: 'dummy-card',
+  restrictionType: 'limited',
+};
+
+function createDummyDeck(count, frameType, namePrefix) {
+  return Array.from({ length: count }, (_, index) => ({
+    ...DUMMY_CARD,
+    id: `${namePrefix}-${index + 1}`,
+    frameType,
+    name: `${namePrefix} ${index + 1}`,
+  }));
+}
+
+const INITIAL_MAIN_DUMMY_DECK = createDummyDeck(60, 'normal', 'main-dummy-card');
+const INITIAL_EXTRA_DUMMY_DECK = createDummyDeck(15, 'fusion', 'extra-dummy-card');
+
 function getImageId(imageUrl = '') {
   return imageUrl.split('/').pop() || '';
 }
 
 function resolveCardImageUrl(imageUrl = '') {
+  if (imageUrl.startsWith('/')) {
+    return imageUrl;
+  }
   const imageId = getImageId(imageUrl);
   return imageId ? `/images/${imageId}` : imageUrl;
 }
@@ -92,10 +117,11 @@ function App() {
   const [selectedCard, setSelectedCard] = useState(null);
   const [cardDetail, setCardDetail] = useState(null);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
+  const [hasSearched, setHasSearched] = useState(true);
   const [aiOpen, setAiOpen] = useState(false);
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [effectsEnabled, setEffectsEnabled] = useState(true);
+  const [dummyDataEnabled, setDummyDataEnabled] = useState(false);
   const [orientationPermissionGranted, setOrientationPermissionGranted] = useState(false);
   const [isOrientationModalOpen, setIsOrientationModalOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
@@ -107,28 +133,44 @@ function App() {
   const hasHydratedRef = useRef(false);
   const messageTimerRef = useRef(null);
   const observerRef = useRef(null);
+  const boardPanelRef = useRef(null);
   const activeSearchRef = useRef('');
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
   const expandedOverlayRef = useRef(null);
   const expandedIndexRef = useRef(null);
+  const expandedCardHostRef = useRef({ parent: null, placeholder: null });
   const activeTouchIndexRef = useRef(null);
   const longPressTimeoutRef = useRef(null);
+  const scrollFollowTimeoutRef = useRef(null);
+  const lastScrollYRef = useRef(0);
+  const expandedScrollOffsetRef = useRef(0);
   const orientationRequestRef = useRef(false);
   const isAnimatingRef = useRef(false);
   const collapseTimerRef = useRef(null);
   const detailCacheRef = useRef({});
+  const savedDeckBeforeDummyRef = useRef({ mainDeck: [], extraDeck: [] });
+  const cardTiltRef = useRef({});
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const { mainDeck: initialMainDeck, extraDeck: initialExtraDeck } = parseDeckParam(params.get('deck'));
-    setMainDeck(initialMainDeck);
-    setExtraDeck(initialExtraDeck);
+    const hasInitialDeck = initialMainDeck.length > 0 || initialExtraDeck.length > 0;
+    const storedDummyPreference = window.localStorage.getItem(DUMMY_DATA_KEY);
+    const shouldUseDummyData = hasInitialDeck ? false : storedDummyPreference !== 'false';
+
+    setDummyDataEnabled(shouldUseDummyData);
+    setMainDeck(hasInitialDeck ? initialMainDeck : shouldUseDummyData ? INITIAL_MAIN_DUMMY_DECK : []);
+    setExtraDeck(hasInitialDeck ? initialExtraDeck : shouldUseDummyData ? INITIAL_EXTRA_DUMMY_DECK : []);
+    savedDeckBeforeDummyRef.current = {
+      mainDeck: initialMainDeck,
+      extraDeck: initialExtraDeck,
+    };
     hasHydratedRef.current = true;
   }, []);
 
   useEffect(() => {
-    if (!hasHydratedRef.current) {
+    if (!hasHydratedRef.current || dummyDataEnabled) {
       return;
     }
 
@@ -140,7 +182,15 @@ function App() {
     }
 
     window.history.replaceState({}, '', `${nextUrl.pathname}${nextUrl.search}`);
-  }, [mainDeck, extraDeck]);
+  }, [dummyDataEnabled, mainDeck, extraDeck]);
+
+  useEffect(() => {
+    if (!hasHydratedRef.current) {
+      return;
+    }
+
+    window.localStorage.setItem(DUMMY_DATA_KEY, String(dummyDataEnabled));
+  }, [dummyDataEnabled]);
 
   useEffect(() => () => {
     if (messageTimerRef.current) {
@@ -248,6 +298,19 @@ function App() {
 
   const totalDeckCount = mainDeck.length + extraDeck.length;
   const getScaleFactor = useCallback(() => (window.innerWidth <= 768 ? 3 : 4), []);
+  const buildCardTransform = useCallback((index, rotateX = 0, rotateY = 0) => {
+    const isExpandedCard = expandedIndexRef.current === index;
+    const hasTilt = effectsEnabled && (rotateX !== 0 || rotateY !== 0);
+    const tiltTransform = hasTilt
+      ? ` perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`
+      : '';
+
+    if (isExpandedCard) {
+      return `translate(-50%, calc(-50% + ${expandedScrollOffsetRef.current}px)) scale(${getScaleFactor()})${tiltTransform}`;
+    }
+
+    return effectsEnabled ? `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)` : '';
+  }, [effectsEnabled, getScaleFactor]);
 
   const restrictionSummary = useMemo(() => {
     return [...mainDeck, ...extraDeck].reduce(
@@ -384,6 +447,26 @@ function App() {
     }
   }
 
+  const toggleDummyData = useCallback(() => {
+    setDummyDataEnabled(prev => {
+      const next = !prev;
+      if (next) {
+        savedDeckBeforeDummyRef.current = {
+          mainDeck,
+          extraDeck,
+        };
+        setMainDeck(INITIAL_MAIN_DUMMY_DECK);
+        setExtraDeck(INITIAL_EXTRA_DUMMY_DECK);
+        collapseExpandedCard({ clearDetail: true });
+      } else {
+        setMainDeck(savedDeckBeforeDummyRef.current.mainDeck);
+        setExtraDeck(savedDeckBeforeDummyRef.current.extraDeck);
+        collapseExpandedCard({ clearDetail: true });
+      }
+      return next;
+    });
+  }, [extraDeck, mainDeck]);
+
   function clearDeck() {
     if (expandedIndexRef.current !== null) {
       collapseExpandedCard({ clearDetail: true });
@@ -485,11 +568,12 @@ function App() {
     const origLeft = parseFloat(cardNode.dataset.origLeft || 0);
     const origScrollY = parseFloat(cardNode.dataset.origScrollY || 0);
     const finalTop = origTop + (origScrollY - window.scrollY);
+    const { parent, placeholder } = expandedCardHostRef.current;
 
     isAnimatingRef.current = true;
     setIsExpanded(false);
     cardNode.classList.remove('expanded');
-    cardNode.style.zIndex = '10';
+    cardNode.style.zIndex = '90';
     cardNode.style.top = `${finalTop}px`;
     cardNode.style.left = `${origLeft}px`;
     cardNode.style.transform = 'translate(0, 0) scale(1)';
@@ -497,13 +581,25 @@ function App() {
     if (collapseTimerRef.current) {
       clearTimeout(collapseTimerRef.current);
     }
+    if (scrollFollowTimeoutRef.current) {
+      clearTimeout(scrollFollowTimeoutRef.current);
+      scrollFollowTimeoutRef.current = null;
+    }
+    expandedScrollOffsetRef.current = 0;
+    delete cardTiltRef.current[currentIndex];
 
     const finishCollapse = () => {
+      if (parent && placeholder && placeholder.parentNode === parent) {
+        parent.insertBefore(cardNode, placeholder);
+        parent.removeChild(placeholder);
+      }
       cardNode.style.position = 'relative';
       cardNode.style.top = '';
       cardNode.style.left = '';
       cardNode.style.transform = '';
+      cardNode.style.transition = '';
       cardNode.style.zIndex = '';
+      expandedCardHostRef.current = { parent: null, placeholder: null };
       expandedIndexRef.current = null;
       isAnimatingRef.current = false;
       if (clearDetail) {
@@ -527,8 +623,9 @@ function App() {
       return;
     }
 
-    const width = node.clientWidth;
-    const height = node.clientHeight;
+    const rect = node.getBoundingClientRect();
+    const width = rect.width || node.clientWidth;
+    const height = rect.height || node.clientHeight;
     if (!width || !height) {
       return;
     }
@@ -541,20 +638,15 @@ function App() {
       : 'none';
 
     if (!effectsEnabled) {
-      node.style.transform =
-        expandedIndexRef.current === index
-          ? `translate(-50%, -50%) scale(${getScaleFactor()})`
-          : '';
+      node.style.transform = buildCardTransform(index, 0, 0);
       return;
     }
 
-    const rotateY = (-40 / 98) * x + 20;
-    const rotateX = (40 / 143) * y - 26;
-    node.style.transform =
-      expandedIndexRef.current === index
-        ? `translate(-50%, -50%) scale(${getScaleFactor()}) perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`
-        : `perspective(350px) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-  }, [effectsEnabled, getScaleFactor]);
+    const rotateY = 20 - (x / width) * 40;
+    const rotateX = (y / height) * 40 - 20;
+    cardTiltRef.current[index] = { rotateX, rotateY };
+    node.style.transform = buildCardTransform(index, rotateX, rotateY);
+  }, [buildCardTransform, effectsEnabled]);
 
   const resetCardEffect = useCallback((index) => {
     const node = cardRefs.current[index];
@@ -567,13 +659,9 @@ function App() {
       overlay.style.background = 'none';
     }
 
-    if (expandedIndexRef.current === index) {
-      node.style.transform = `translate(-50%, -50%) scale(${getScaleFactor()})`;
-      return;
-    }
-
-    node.style.transform = effectsEnabled ? 'perspective(350px) rotateY(0deg) rotateX(0deg)' : '';
-  }, [effectsEnabled, getScaleFactor]);
+    cardTiltRef.current[index] = { rotateX: 0, rotateY: 0 };
+    node.style.transform = buildCardTransform(index, 0, 0);
+  }, [buildCardTransform]);
 
   const requestOrientationPermission = useCallback(async () => {
     if (orientationPermissionGranted || orientationRequestRef.current) {
@@ -618,7 +706,11 @@ function App() {
     if (isAnimatingRef.current) {
       return;
     }
-    applyCardEffect(event.nativeEvent.offsetX, event.nativeEvent.offsetY, index);
+    const { currentTarget, clientX, clientY } = event;
+    const rect = currentTarget.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    applyCardEffect(x, y, index);
   }, [applyCardEffect]);
 
   const handleMouseOut = useCallback((index) => {
@@ -672,11 +764,24 @@ function App() {
     }
 
     const rect = cardNode.getBoundingClientRect();
+    const originalParent = cardNode.parentNode;
+    const placeholder = document.createElement('div');
+    placeholder.className = 'expanded-card-placeholder';
+    placeholder.style.width = `${rect.width}px`;
+    placeholder.style.height = `${rect.height}px`;
+
     cardNode.dataset.origTop = rect.top;
     cardNode.dataset.origLeft = rect.left;
     cardNode.dataset.origScrollY = window.scrollY;
+    lastScrollYRef.current = window.scrollY;
+    expandedScrollOffsetRef.current = 0;
+    expandedCardHostRef.current = { parent: originalParent, placeholder };
+
+    originalParent.insertBefore(placeholder, cardNode);
+    expandedOverlayRef.current.appendChild(cardNode);
 
     cardNode.style.position = 'fixed';
+    cardNode.style.zIndex = '90';
     cardNode.style.top = `${rect.top}px`;
     cardNode.style.left = `${rect.left}px`;
 
@@ -686,7 +791,8 @@ function App() {
       cardNode.classList.add('expanded');
       cardNode.style.top = '';
       cardNode.style.left = '';
-      cardNode.style.transform = `translate(-50%, -50%) scale(${getScaleFactor()})`;
+      const tilt = cardTiltRef.current[index] || { rotateX: 0, rotateY: 0 };
+      cardNode.style.transform = buildCardTransform(index, tilt.rotateX, tilt.rotateY);
     });
 
     const finishExpand = () => {
@@ -698,6 +804,99 @@ function App() {
 
     expandedIndexRef.current = index;
   }
+
+  useEffect(() => {
+    let scrollTimeout;
+    const boardPanelNode = boardPanelRef.current;
+    let lastScrollY = boardPanelNode ? boardPanelNode.scrollTop : window.scrollY;
+
+    const handleScrollFollow = () => {
+      if (expandedIndexRef.current !== null) {
+        const card = cardRefs.current[expandedIndexRef.current];
+        if (card) {
+          const currentScrollY = boardPanelNode ? boardPanelNode.scrollTop : window.scrollY;
+          const scrollDiff = currentScrollY - lastScrollY;
+          if (scrollDiff === 0) {
+            return;
+          }
+
+          expandedScrollOffsetRef.current -= scrollDiff;
+          card.style.transition = 'none';
+          const tilt = cardTiltRef.current[expandedIndexRef.current] || { rotateX: 0, rotateY: 0 };
+          card.style.transform = buildCardTransform(
+            expandedIndexRef.current,
+            tilt.rotateX,
+            tilt.rotateY
+          );
+
+          clearTimeout(scrollTimeout);
+          scrollTimeout = setTimeout(() => {
+            if (expandedIndexRef.current !== null) {
+              expandedScrollOffsetRef.current = 0;
+              card.style.transition = '';
+              const tilt = cardTiltRef.current[expandedIndexRef.current] || { rotateX: 0, rotateY: 0 };
+              card.style.transform = buildCardTransform(
+                expandedIndexRef.current,
+                tilt.rotateX,
+                tilt.rotateY
+              );
+            }
+          }, 400);
+
+          lastScrollY = currentScrollY;
+        }
+      } else {
+        lastScrollY = boardPanelNode ? boardPanelNode.scrollTop : window.scrollY;
+      }
+    };
+
+    window.addEventListener('scroll', handleScrollFollow, { passive: true });
+    boardPanelNode?.addEventListener('scroll', handleScrollFollow, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', handleScrollFollow);
+      boardPanelNode?.removeEventListener('scroll', handleScrollFollow);
+      clearTimeout(scrollTimeout);
+    };
+  }, [buildCardTransform, getScaleFactor]);
+
+  useEffect(() => {
+    if (!isExpanded || expandedIndexRef.current === null) {
+      return undefined;
+    }
+
+    const index = expandedIndexRef.current;
+    const node = cardRefs.current[index];
+    if (!node) {
+      return undefined;
+    }
+
+    const handleExpandedPointerMove = (event) => {
+      if (isAnimatingRef.current) {
+        return;
+      }
+
+      const rect = node.getBoundingClientRect();
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      applyCardEffect(x, y, index);
+    };
+
+    const handleExpandedPointerLeave = () => {
+      if (isAnimatingRef.current) {
+        return;
+      }
+
+      resetCardEffect(index);
+    };
+
+    node.addEventListener('pointermove', handleExpandedPointerMove);
+    node.addEventListener('pointerleave', handleExpandedPointerLeave);
+
+    return () => {
+      node.removeEventListener('pointermove', handleExpandedPointerMove);
+      node.removeEventListener('pointerleave', handleExpandedPointerLeave);
+    };
+  }, [applyCardEffect, isExpanded, resetCardEffect]);
 
   useEffect(() => {
     if (!window.DeviceOrientationEvent || !orientationPermissionGranted || !effectsEnabled) {
@@ -749,11 +948,11 @@ function App() {
   const selectedRestriction = selectedCard?.restrictionType || 'unlimited';
 
   const handleSearchResultHover = useCallback((card) => {
-    if (isMobile || !card) {
+    if (isMobile || isExpanded || !card) {
       return;
     }
     loadCardDetail(card);
-  }, [isMobile, loadCardDetail]);
+  }, [isExpanded, isMobile, loadCardDetail]);
 
 
   return (
@@ -835,6 +1034,13 @@ function App() {
           <div className="hero-actions hero-actions--utility">
             <button
               type="button"
+              className={`secondary-action effect-toggle ${dummyDataEnabled ? 'is-on' : 'is-off'}`}
+              onClick={toggleDummyData}
+            >
+              Dummy Data
+            </button>
+            <button
+              type="button"
               className={`secondary-action effect-toggle ${effectsEnabled ? 'is-on' : 'is-off'}`}
               onClick={() => setEffectsEnabled(prev => !prev)}
             >
@@ -859,7 +1065,7 @@ function App() {
           </div>
         </aside>
 
-        <main className="board-panel">
+        <main className="board-panel" ref={boardPanelRef}>
           {message && <div className="floating-message">{message}</div>}
 
           {deckSections.map(section => (
@@ -1059,9 +1265,25 @@ function App() {
                 >
                   <div className="result-card__image-wrap">
                     <img src={resolveCardImageUrl(result.imageUrl)} alt={result.name} />
-                    <span className={`result-card__restriction ${RESTRICTION_CLASS[result.restrictionType || 'unlimited']}`}>
-                      {RESTRICTION_LABELS[result.restrictionType || 'unlimited']}
-                    </span>
+                    {result.restrictionType && result.restrictionType !== 'unlimited' && (
+                      <span
+                        className={`restriction-label ${
+                          result.restrictionType === 'forbidden'
+                            ? 'forbidden'
+                            : result.restrictionType === 'limited'
+                              ? 'limited'
+                              : 'semi-limited'
+                        }`}
+                        aria-label={RESTRICTION_LABELS[result.restrictionType]}
+                        title={RESTRICTION_LABELS[result.restrictionType]}
+                      >
+                        {result.restrictionType === 'forbidden'
+                          ? null
+                          : result.restrictionType === 'limited'
+                            ? '1'
+                            : '2'}
+                      </span>
+                    )}
                   </div>
                   <strong>{result.name}</strong>
                 </button>

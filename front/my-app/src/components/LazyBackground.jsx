@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 
 const PLACEHOLDER_IMAGE = '/back_image/101206057.jpg';
 
-function LazyBackground({ src, className }) {
+function LazyBackground({ src, className, ...rest }) {
   const [bg, setBg] = useState(`url(${PLACEHOLDER_IMAGE})`);
 
   useEffect(() => {
@@ -15,7 +15,7 @@ function LazyBackground({ src, className }) {
     return () => { img.onload = null; img.onerror = null; };
   }, [src]);
 
-  return <div className={className} style={{ backgroundImage: bg }}></div>;
+  return <div className={className} style={{ backgroundImage: bg }} {...rest}></div>;
 }
 
 export default LazyBackground;

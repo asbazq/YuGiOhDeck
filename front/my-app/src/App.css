@@ -632,9 +632,9 @@ body {
   position: fixed;
   inset: 0;
   background: rgba(12, 12, 14, 0.58);
-  z-index: 6;
+  z-index: 80;
   display: none;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 @media (max-width: 1360px) {

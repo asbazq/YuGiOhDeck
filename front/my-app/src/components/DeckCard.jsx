@@ -2,6 +2,22 @@ import React from 'react';
 import LazyBackground from './LazyBackground';
 import { localImagePath, filenameOf } from '../common/imagePath';
 
+function isDirectAssetUrl(value) {
+  if (!value || typeof value !== 'string') {
+    return false;
+  }
+
+  return (
+    value.startsWith('data:') ||
+    value.startsWith('blob:') ||
+    value.startsWith('/back_image/') ||
+    value.startsWith('/static/') ||
+    value.includes('/static/media/') ||
+    value.startsWith('http://') ||
+    value.startsWith('https://')
+  );
+}
+
 function DeckCard({
   card,
   index,
@@ -17,8 +33,13 @@ function DeckCard({
 }) {
   // 안전한 파일명/ID 파싱
   const fileOrId = card?.id ?? filenameOf(card?.imageUrl) ?? filenameOf(card?.imageUrlSmall);
-  const smallSrc = localImagePath(fileOrId, 'small');
-  const largeSrc = localImagePath(fileOrId, 'large');
+  const fallbackDirectSrc = card?.imageUrlSmall || card?.imageUrl;
+  const smallSrc = isDirectAssetUrl(fallbackDirectSrc)
+    ? fallbackDirectSrc
+    : localImagePath(fileOrId, 'small');
+  const largeSrc = isDirectAssetUrl(card?.imageUrl)
+    ? card.imageUrl
+    : localImagePath(fileOrId, 'large');
   const currentSrc = useLarge ? largeSrc : smallSrc;
 
   return (
@@ -44,9 +65,17 @@ function DeckCard({
           data-large={largeSrc}
         />
         {card.restrictionType && card.restrictionType !== 'unlimited' && (
-          <div className="restriction-label">
+          <div
+            className={`restriction-label ${
+              card.restrictionType === 'forbidden'
+                ? 'forbidden'
+                : card.restrictionType === 'limited'
+                ? 'limited'
+                : 'semi-limited'
+            }`}
+          >
             {card.restrictionType === 'forbidden'
-              ? 'X'
+              ? null
               : card.restrictionType === 'limited'
               ? '1'
               : '2'}
