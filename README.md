@@ -381,7 +381,7 @@ erDiagram
 
 
 
-## Queue Patch Notes (2026-04-03)
+## Queue Patch Notes
 
 대기열 Redis/WebSocket 처리에서 운영 중 문제될 수 있는 부분을 보완했다.
 
@@ -410,7 +410,7 @@ erDiagram
 
 ---
 
-## Project Update Notes (2026-04-03)
+## Project Update Notes
 
 이번 수정은 화면 완성도, 운영 안정성, 테스트 재현성, 정적 리소스 처리 효율을 함께 보완하는 방향으로 진행했다.
 
@@ -514,38 +514,7 @@ Redis + WebSocket 기반 대기열 구조 자체는 맞았지만, 재연결 시 
 
 ### 5. Docker Compose + FastAPI 연동
 
-`docker-compose.yml`은 이제 Spring, MySQL, Redis와 함께 `E:\Project\yugioh-deck-ai`의 FastAPI 서버도 같이 올리도록 구성되어 있다.
-
-#### 추가된 구성
-
-* `ai` 서비스가 `../yugioh-deck-ai/Dockerfile`로 빌드된다.
-* Spring `app` 서비스는 `AI_PREDICT_BASE_URL=http://ai:8000`을 사용해 FastAPI 컨테이너에 내부 네트워크로 연결된다.
-* `app` 서비스는 `ai` 헬스체크가 통과한 뒤 시작된다.
-* Chroma 데이터는 `ai-chroma` 볼륨을 사용하고, 스냅샷은 `../yugioh-deck-ai/snapshots`를 읽기 전용으로 마운트한다.
-
-#### 실행 방법
-
-```bash
-cd E:/Project/Yugioh
-docker compose up -d --build
-```
-
-#### 확인 포인트
-
-* FastAPI 외부 포트: `8000`
-* Spring 내부 AI 주소: `http://ai:8000`
-* compose 문법 검증:
-
-```bash
-docker compose -f E:/Project/Yugioh/docker-compose.yml config
-```
-
-#### 주의 사항
-
-* 현재 `app`, `crawler`의 이미지 볼륨 경로는 `/home/d568/...` 기준이다.
-* Linux 서버 배포 기준이면 그대로 사용하면 되고, Windows 로컬에서 직접 실행할 경우 해당 bind mount 경로는 로컬 환경에 맞게 바꿔야 한다.
-
-두 검증 모두 2026-04-03 기준으로 통과했다.
+`docker-compose.yml`은 이제 Spring, MySQL, Redis와 함께 FastAPI 서버도 같이 올리도록 구성되어 있다.
 
 
 ---
