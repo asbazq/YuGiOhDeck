@@ -14,8 +14,7 @@ import org.apache.hc.client5.http.fluent.Request;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
-
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.stereotype.Service;
 
 import com.card.Yugioh.model.CardImage;
 import com.card.Yugioh.model.CardModel;
@@ -29,7 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 
 @Slf4j
 @RequiredArgsConstructor
-@RestController
+@Service
 public class ImageService {
     // sort - 카드 정렬 (atk, def, name, type, level, id, new).
     // 최신 카드 5장
