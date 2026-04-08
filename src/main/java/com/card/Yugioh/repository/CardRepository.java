@@ -40,7 +40,8 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
                 (LOWER(name_normalized) = LOWER(REPLACE(:raw, ' ', ''))) DESC,
                 (LOWER(name) LIKE LOWER(CONCAT(:raw, '%'))) DESC,
                 MATCH(name_normalized, kor_name_normalized)
-                    AGAINST(:query IN BOOLEAN MODE) DESC
+                    AGAINST(:query IN BOOLEAN MODE) DESC,
+                id ASC
             """,
             nativeQuery = true)
     Page<CardModel> searchByFullText(@Param("query") String query,

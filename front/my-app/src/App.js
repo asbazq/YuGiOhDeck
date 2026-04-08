@@ -67,6 +67,33 @@ function resolveCardImageUrl(imageUrl = '') {
   return imageId ? `/images/${imageId}` : imageUrl;
 }
 
+function getSearchResultKey(card = {}) {
+  if (card.id !== undefined && card.id !== null) {
+    return `id:${card.id}`;
+  }
+  const imageId = getImageId(card.imageUrl);
+  if (imageId) {
+    return `image:${imageId}`;
+  }
+  return `name:${(card.name || '').trim().toLowerCase()}`;
+}
+
+function mergeUniqueSearchResults(previousResults, nextResults) {
+  const merged = [...previousResults];
+  const seen = new Set(previousResults.map(getSearchResultKey));
+
+  nextResults.forEach(card => {
+    const key = getSearchResultKey(card);
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    merged.push(card);
+  });
+
+  return merged;
+}
+
 function getNoticeThumbUrl(nameOrId = '') {
   return `/images/small/${encodeURIComponent(nameOrId)}.jpg`;
 }
@@ -149,6 +176,8 @@ function App() {
   const isAnimatingRef = useRef(false);
   const collapseTimerRef = useRef(null);
   const detailCacheRef = useRef({});
+  const requestedSearchPagesRef = useRef(new Set());
+  const activeSearchTokenRef = useRef(0);
   // const savedDeckBeforeDummyRef = useRef({ mainDeck: [], extraDeck: [] });
 
   useEffect(() => {
@@ -319,6 +348,17 @@ function App() {
       setCurrentPage(-1);
       setHasMoreResults(false);
       setHasSearched(false);
+      requestedSearchPagesRef.current.clear();
+      return;
+    }
+
+    if (page === 0) {
+      activeSearchTokenRef.current += 1;
+      requestedSearchPagesRef.current.clear();
+    }
+
+    const requestKey = `${normalizedKeyword}:${page}`;
+    if (requestedSearchPagesRef.current.has(requestKey)) {
       return;
     }
 
@@ -326,6 +366,8 @@ function App() {
       return;
     }
 
+    requestedSearchPagesRef.current.add(requestKey);
+    const requestToken = activeSearchTokenRef.current;
     setIsLoading(true);
 
     try {
@@ -338,16 +380,26 @@ function App() {
       }
 
       const data = await response.json();
-      setSearchResults(prev => (page === 0 ? data.content : [...prev, ...data.content]));
+
+      if (requestToken !== activeSearchTokenRef.current) {
+        return;
+      }
+
+      setSearchResults(prev => (page === 0
+        ? mergeUniqueSearchResults([], data.content)
+        : mergeUniqueSearchResults(prev, data.content)));
       setCurrentPage(data.number);
       setHasMoreResults(!data.last);
       setHasSearched(true);
       activeSearchRef.current = normalizedKeyword;
     } catch (error) {
       console.error(error);
+      requestedSearchPagesRef.current.delete(requestKey);
       showMessage('카드 검색에 실패했습니다. 잠시 후 다시 시도해 주세요.');
     } finally {
-      setIsLoading(false);
+      if (requestToken === activeSearchTokenRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [isLoading, showMessage]);
 
@@ -1004,23 +1056,13 @@ function App() {
             </button>
           </div>
 
-          <div className="hero-actions">
+          <div className="hero-actions hero-actions--main">
             <button type="button" className="primary-action" onClick={copyShareLink}>
               링크 복사
             </button>
             <button type="button" className="secondary-action" onClick={clearDeck}>
               덱 초기화
             </button>
-          </div>
-
-          <div className="hero-actions hero-actions--utility">
-            {/* <button
-              type="button"
-              className={`secondary-action effect-toggle ${dummyDataEnabled ? 'is-on' : 'is-off'}`}
-              onClick={toggleDummyData}
-            >
-              Dummy Data
-            </button> */}
             <button
               type="button"
               className={`secondary-action effect-toggle ${effectsEnabled ? 'is-on' : 'is-off'}`}
@@ -1028,6 +1070,9 @@ function App() {
             >
               3D Effect
             </button>
+          </div>
+
+          <div className="hero-actions hero-actions--utility">
             {!orientationPermissionGranted && (
               <button
                 type="button"
@@ -1236,9 +1281,9 @@ function App() {
             )}
 
             <div className="results-grid">
-              {searchResults.map((result, index) => (
+              {searchResults.map(result => (
                 <button
-                  key={`${result.id || result.name}-${index}`}
+                  key={getSearchResultKey(result)}
                   type="button"
                   className="result-card"
                   onClick={() => addCardToDeck(result)}

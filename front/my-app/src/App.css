@@ -248,6 +248,10 @@ body {
   margin-top: 12px;
 }
 
+.hero-actions--main {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .primary-action,
 .secondary-action,
 .search-box__controls button {
@@ -417,9 +421,11 @@ body {
   align-content: start;
   padding: 18px;
   border-radius: var(--radius-xl);
+  box-sizing: border-box;
   height: 100%;
   max-height: 100%;
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
 }
 
@@ -700,6 +706,7 @@ body {
     top: 0;
     right: 0;
     z-index: 29;
+    grid-template-columns: 1fr;
     grid-template-rows: auto minmax(0, 1fr);
     width: min(360px, calc(100vw - 24px));
     height: 100vh;
@@ -742,6 +749,17 @@ body {
     border-radius: 22px;
   }
 
+  .search-panel {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 14px;
+    left: 50px;
+    right: 50px;
+    width: auto;
+    max-width: none;
+    padding: 68px 12px 16px;
+  }
+
   .hero-nav,
   .hero-actions,
   .search-box__controls,
@@ -752,10 +770,49 @@ body {
     flex-direction: column;
   }
 
-  .hero-nav,
+  .hero-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .hero-actions {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+  }
+
+  .hero-actions--main {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .hero-actions--utility {
+    grid-template-columns: 1fr;
+  }
+
+  .search-box,
+  .results-panel {
+    width: 90%;
+    min-width: 0;
+  }
+
+  .search-box__controls {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .search-box__controls button {
+    width: 100%;
+    min-width: 0;
+    padding: 11px 12px;
+    white-space: nowrap;
+  }
+
+  .hero-nav__button,
+  .primary-action,
+  .secondary-action {
+    min-width: 0;
+    padding: 11px 10px;
+    font-size: 0.74rem;
+    letter-spacing: 0.02em;
   }
 
   .section-header,
@@ -767,6 +824,16 @@ body {
 
   .search-button {
     top: 12px;
-    right: 12px;
+    right: max(56px, calc(env(safe-area-inset-right) + 40px));
+    max-width: calc(100vw - 24px);
+    min-width: 0;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+
+  .help-card {
+    display: none;
   }
 }
