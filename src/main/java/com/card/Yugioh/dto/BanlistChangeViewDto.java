@@ -12,6 +12,7 @@ public class BanlistChangeViewDto {
     private String cardName;    
     private String fromType;   
     private String toType;      
+    private String frameType;
     private Long imageId;       
     private String thumbUrl;    
 }

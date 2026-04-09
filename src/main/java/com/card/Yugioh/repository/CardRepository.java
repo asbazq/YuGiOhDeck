@@ -27,18 +27,34 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
             SELECT *
             FROM deck.card_model
             WHERE
-            (:frameType = '' OR frame_type = :frameType)
+            (
+                :frameType = ''
+                OR (:frameType = 'monster' AND frame_type IN ('normal', 'effect', 'ritual'))
+                OR (:frameType = 'pendulum' AND frame_type IN ('effect_pendulum', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum', 'normal_pendulum'))
+                OR frame_type = :frameType
+            )
             AND (
                 MATCH(name_normalized, kor_name_normalized) AGAINST(:query IN BOOLEAN MODE)
                 OR LOWER(name) = LOWER(:raw)
+                OR LOWER(kor_name) = LOWER(:raw)
                 OR LOWER(name_normalized) = LOWER(REPLACE(:raw, ' ', ''))
+                OR LOWER(kor_name_normalized) = LOWER(REPLACE(:raw, ' ', ''))
                 OR LOWER(name) LIKE LOWER(CONCAT(:raw, '%'))
+                OR LOWER(kor_name) LIKE LOWER(CONCAT(:raw, '%'))
                 OR LOWER(name) LIKE LOWER(CONCAT('%', :raw, '%'))
+                OR LOWER(kor_name) LIKE LOWER(CONCAT('%', :raw, '%'))
+                OR LOWER(name_normalized) LIKE LOWER(CONCAT('%', REPLACE(:raw, ' ', ''), '%'))
+                OR LOWER(kor_name_normalized) LIKE LOWER(CONCAT('%', REPLACE(:raw, ' ', ''), '%'))
             )
             ORDER BY
                 (LOWER(name) = LOWER(:raw)) DESC,
+                (LOWER(kor_name) = LOWER(:raw)) DESC,
                 (LOWER(name_normalized) = LOWER(REPLACE(:raw, ' ', ''))) DESC,
+                (LOWER(kor_name_normalized) = LOWER(REPLACE(:raw, ' ', ''))) DESC,
                 (LOWER(name) LIKE LOWER(CONCAT(:raw, '%'))) DESC,
+                (LOWER(kor_name) LIKE LOWER(CONCAT(:raw, '%'))) DESC,
+                (LOWER(name_normalized) LIKE LOWER(CONCAT(REPLACE(:raw, ' ', ''), '%'))) DESC,
+                (LOWER(kor_name_normalized) LIKE LOWER(CONCAT(REPLACE(:raw, ' ', ''), '%'))) DESC,
                 MATCH(name_normalized, kor_name_normalized)
                     AGAINST(:query IN BOOLEAN MODE) DESC,
                 id ASC

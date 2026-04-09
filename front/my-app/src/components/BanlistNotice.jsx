@@ -1,5 +1,5 @@
 ﻿import React, { useEffect, useMemo, useState } from 'react';
-import '../styles/BanlistNotice.css';
+import '../styles/BanlistNoticeModern.css';
 
 const PLACEHOLDER = '/back_image/101206057.jpg';
 const SECTION_LABELS = {
@@ -8,6 +8,18 @@ const SECTION_LABELS = {
   semilimited: '준제한으로 변경되는 카드',
   unlimited: '매수 제한이 해제되는 카드',
 };
+
+function getNoticeSortGroup(frameType = '') {
+  if (frameType === 'spell') {
+    return 1;
+  }
+
+  if (frameType === 'trap') {
+    return 2;
+  }
+
+  return 0;
+}
 
 function LimitMark({ type, tone }) {
   const markClass = type === 'forbidden' ? 'is-forbidden' : '';
@@ -27,7 +39,6 @@ function LimitMark({ type, tone }) {
 
 export default function BanlistNotice({
   open = true,
-  onClose,
   changes: externalChanges,
   getThumbUrl,
   endpoint = '/cards/notice',
@@ -101,6 +112,21 @@ export default function BanlistNotice({
         grouped[change.toType].push(change);
       }
     }
+
+    Object.keys(grouped).forEach((key) => {
+      grouped[key].sort((left, right) => {
+        const groupDiff =
+          getNoticeSortGroup(left.frameType) - getNoticeSortGroup(right.frameType);
+        if (groupDiff !== 0) {
+          return groupDiff;
+        }
+
+        const leftName = (left.kor_name || left.korName || left.name || left.cardName || '').trim();
+        const rightName = (right.kor_name || right.korName || right.name || right.cardName || '').trim();
+        return leftName.localeCompare(rightName, 'ko');
+      });
+    });
+
     return grouped;
   }, [changes]);
 
@@ -113,7 +139,11 @@ export default function BanlistNotice({
     return (
       <section className="ban-sec" key={toType}>
         <div className="ban-sec__title">
-          {SECTION_LABELS[toType]} <span className="ban-sec__count">({list.length}장)</span>
+          <div>
+            <div className="ban-sec__eyebrow">{toType.toUpperCase()}</div>
+            <strong>{SECTION_LABELS[toType]}</strong>
+          </div>
+          <span className="ban-sec__count">{list.length}장</span>
         </div>
 
         <div className="ban-grid">
@@ -145,6 +175,11 @@ export default function BanlistNotice({
                     }}
                   />
                 </div>
+                <div className="ban-card__transition">
+                  <span>{fromType}</span>
+                  <span>to</span>
+                  <span>{change.toType}</span>
+                </div>
                 <div className="ban-card__name">{displayName}</div>
               </div>
             );
@@ -168,6 +203,7 @@ export default function BanlistNotice({
       {renderSection('limited')}
       {renderSection('semilimited')}
       {renderSection('unlimited')}
+      {!changes.length && <div className="notice-empty">표시할 변경 공지가 없습니다.</div>}
     </div>
   );
 }

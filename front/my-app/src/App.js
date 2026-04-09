@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import pako from 'pako';
 import AICardRecognizerModal from './components/AICardRecognizerModal';
-import BanlistNoticeModal from './components/BanlistNoticeModal';
+import BanlistNoticeSheet from './components/BanlistNoticeSheet';
 import DeckCard from './components/DeckCard';
 import OrientationModal from './components/OrientationModal';
 import { useNavigate } from 'react-router-dom';
@@ -98,8 +98,25 @@ function getNoticeThumbUrl(nameOrId = '') {
   return `/images/small/${encodeURIComponent(nameOrId)}.jpg`;
 }
 
+function getCardSortGroup(frameType = '') {
+  if (frameType === 'spell') {
+    return 1;
+  }
+
+  if (frameType === 'trap') {
+    return 2;
+  }
+
+  return 0;
+}
+
 function sortCards(deck) {
   return [...deck].sort((a, b) => {
+    const groupDiff = getCardSortGroup(a.frameType) - getCardSortGroup(b.frameType);
+    if (groupDiff !== 0) {
+      return groupDiff;
+    }
+
     const left = getImageId(a.imageUrl);
     const right = getImageId(b.imageUrl);
     return left.localeCompare(right);
@@ -137,6 +154,7 @@ function App() {
   const [mainDeck, setMainDeck] = useState([]);
   const [extraDeck, setExtraDeck] = useState([]);
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [searchFrameType, setSearchFrameType] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [currentPage, setCurrentPage] = useState(-1);
   const [hasMoreResults, setHasMoreResults] = useState(false);
@@ -162,7 +180,7 @@ function App() {
   const messageTimerRef = useRef(null);
   const observerRef = useRef(null);
   const boardPanelRef = useRef(null);
-  const activeSearchRef = useRef('');
+  const activeSearchRef = useRef({ keyword: '', frameType: '' });
   const cardRefs = useRef([]);
   const overlayRefs = useRef([]);
   const expandedOverlayRef = useRef(null);
@@ -310,6 +328,13 @@ function App() {
   const totalDeckCount = mainDeck.length + extraDeck.length;
   const getScaleFactor = useCallback(() => (window.innerWidth <= 768 ? 3 : 4), []);
   const getExpandedCenterPosition = useCallback(() => {
+    if (window.innerWidth <= 980) {
+      return {
+        top: `${window.innerHeight / 2}px`,
+        left: `${window.innerWidth / 2}px`,
+      };
+    }
+
     const boardPanel = boardPanelRef.current;
     if (!boardPanel) {
       return {
@@ -340,14 +365,16 @@ function App() {
     );
   }, [mainDeck, extraDeck]);
 
-  const searchCards = useCallback(async (keyword, page = 0) => {
+  const searchCards = useCallback(async (keyword, frameType = '', page = 0) => {
     const normalizedKeyword = keyword.trim();
+    const normalizedFrameType = frameType.trim();
 
     if (!normalizedKeyword) {
       setSearchResults([]);
       setCurrentPage(-1);
       setHasMoreResults(false);
       setHasSearched(false);
+      activeSearchRef.current = { keyword: '', frameType: normalizedFrameType };
       requestedSearchPagesRef.current.clear();
       return;
     }
@@ -357,7 +384,7 @@ function App() {
       requestedSearchPagesRef.current.clear();
     }
 
-    const requestKey = `${normalizedKeyword}:${page}`;
+    const requestKey = `${normalizedKeyword}:${normalizedFrameType}:${page}`;
     if (requestedSearchPagesRef.current.has(requestKey)) {
       return;
     }
@@ -372,7 +399,7 @@ function App() {
 
     try {
       const response = await fetch(
-        `/cards/search?keyWord=${encodeURIComponent(normalizedKeyword)}&page=${page}&size=${PAGE_SIZE}`
+        `/cards/search?keyWord=${encodeURIComponent(normalizedKeyword)}&frameType=${encodeURIComponent(normalizedFrameType)}&page=${page}&size=${PAGE_SIZE}`
       );
 
       if (!response.ok) {
@@ -391,7 +418,7 @@ function App() {
       setCurrentPage(data.number);
       setHasMoreResults(!data.last);
       setHasSearched(true);
-      activeSearchRef.current = normalizedKeyword;
+      activeSearchRef.current = { keyword: normalizedKeyword, frameType: normalizedFrameType };
     } catch (error) {
       console.error(error);
       requestedSearchPagesRef.current.delete(requestKey);
@@ -411,8 +438,8 @@ function App() {
       return;
     }
 
-    searchCards(normalizedKeyword, 0);
-  }, [searchCards, searchKeyword, showMessage]);
+    searchCards(normalizedKeyword, searchFrameType, 0);
+  }, [searchCards, searchFrameType, searchKeyword, showMessage]);
 
   const loadCardDetail = useCallback(async (card) => {
     if (!card?.name) {
@@ -565,8 +592,8 @@ function App() {
         return;
       }
 
-      if (hasMoreResults && !isLoading && activeSearchRef.current) {
-        searchCards(activeSearchRef.current, currentPage + 1);
+      if (hasMoreResults && !isLoading && activeSearchRef.current.keyword) {
+        searchCards(activeSearchRef.current.keyword, activeSearchRef.current.frameType, currentPage + 1);
       }
     }, { rootMargin: '240px' });
 
@@ -947,8 +974,8 @@ function App() {
       const height = node.clientHeight;
       const gamma = Math.max(-45, Math.min(45, event.gamma || 0));
       const beta = Math.max(-45, Math.min(45, event.beta || 0));
-      const x = ((gamma + 45) / 90) * width;
-      const y = ((beta + 45) / 90) * height;
+      const x = ((45 - gamma) / 90) * width;
+      const y = ((45 - beta) / 90) * height;
       applyCardEffect(x, y, index);
     };
 
@@ -995,7 +1022,7 @@ function App() {
         <>
           <button
             type="button"
-            className="search-button"
+            className={`search-button ${isSearchOpen ? 'is-hidden' : ''}`}
             onClick={() => setIsSearchOpen(true)}
             aria-label="Open search panel"
           >
@@ -1141,6 +1168,21 @@ function App() {
           <section className="search-box">
             <div className="search-box__label">Card Search</div>
             <div className="search-box__controls">
+              <select
+                value={searchFrameType}
+                onChange={event => setSearchFrameType(event.target.value)}
+                aria-label="카드 분류"
+              >
+                <option value="">전체</option>
+                <option value="monster">몬스터</option>
+                <option value="spell">마법</option>
+                <option value="trap">함정</option>
+                <option value="fusion">융합</option>
+                <option value="xyz">Xyz</option>
+                <option value="synchro">싱크로</option>
+                <option value="link">링크</option>
+                <option value="pendulum">펜듈럼</option>
+              </select>
               <input
                 type="search"
                 value={searchKeyword}
@@ -1331,7 +1373,7 @@ function App() {
           showMessage(`AI 판별 대기열 세션이 만료되었습니다. 현재 대기 위치: ${Math.max(0, pos || 0)}`);
         }}
       />
-      <BanlistNoticeModal
+      <BanlistNoticeSheet
         open={noticeOpen}
         onClose={() => setNoticeOpen(false)}
         onDismissToday={dismissNoticeForOneDay}

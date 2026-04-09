@@ -661,6 +661,7 @@ public class CardService {
                 .orElseGet(() -> cardRepository.findByName(scrapedName).orElse(null));
 
         String displayName = scrapedName;
+        String frameType = "";
         Long imageId = null;
         String thumbUrl = "";
 
@@ -668,6 +669,7 @@ public class CardService {
             displayName = (model.getKorName() != null && !model.getKorName().isBlank())
                     ? model.getKorName()
                     : model.getName();
+            frameType = model.getFrameType() != null ? model.getFrameType() : "";
 
             var images = cardImgRepository.findByCardModel(model);
             if (!images.isEmpty()) {
@@ -695,6 +697,7 @@ public class CardService {
                 .cardName(scrapedName)
                 .fromType(row.getOldType().toLowerCase())
                 .toType(row.getNewType().toLowerCase())
+                .frameType(frameType)
                 .imageId(imageId)
                 .thumbUrl(thumbUrl)
                 .build();
