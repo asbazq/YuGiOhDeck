@@ -28,7 +28,8 @@
 
 ## 개요
 
-![image](https://github.com/user-attachments/assets/0576c27d-67bb-4c86-b619-5dc7dd1d9979)
+![image](https://github.com/user-attachments/assets/3864059c-fd0f-4b9e-8be2-9f24d8fd518f)
+
 
 * 기존 덱 공유 방식의 한계: 영어·스크린샷 위주로 카드 정보 확인이 어려움
 * **목표**: 한글·영어 지원 검색, URL 공유, UX 개선을 통해 덱 구성 경험 최적화
@@ -521,11 +522,10 @@ Redis + WebSocket 기반 대기열 구조 자체는 맞았지만, 재연결 시 
 
 ## 디자인
 
-![image](https://github.com/user-attachments/assets/3e9044ac-91ff-4cc3-88af-866ebcaf6e65)
-![image](https://github.com/user-attachments/assets/ef038b14-4ceb-48d4-a327-566e271f3a57)
-![image](https://github.com/user-attachments/assets/215f2a22-de91-4a2e-9510-02e3afe12153)
+![image](https://github.com/user-attachments/assets/ba9093a3-c086-42a6-b04e-42adef5e890b)
+![image](https://github.com/user-attachments/assets/9a21b03f-af61-42ac-ab97-08d1aead2bfe)
+![image](https://github.com/user-attachments/assets/09f27c7d-4e06-4cd2-af9f-cc42893f4adc)
 ![image](https://github.com/user-attachments/assets/d4f7f146-a847-4bde-83d2-5ff053cbffad)
-![image](https://github.com/user-attachments/assets/c7dd0bf7-3d64-4841-9939-ffe19d4d65f7)
 
 
 
