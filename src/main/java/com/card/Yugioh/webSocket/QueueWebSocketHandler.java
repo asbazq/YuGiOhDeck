@@ -9,6 +9,7 @@ import org.springframework.web.socket.handler.TextWebSocketHandler;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -20,10 +21,12 @@ import com.card.Yugioh.service.WebAPIService;
 public class QueueWebSocketHandler extends TextWebSocketHandler {
 
     private final WebAPIService webAPIService;
+    private final ObjectMapper objectMapper;
     private static final CopyOnWriteArrayList<WebSocketSession> sessions = new CopyOnWriteArrayList<>();
 
-    public QueueWebSocketHandler(WebAPIService webAPIService) {
+    public QueueWebSocketHandler(WebAPIService webAPIService, ObjectMapper objectMapper) {
         this.webAPIService = webAPIService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -42,17 +45,23 @@ public class QueueWebSocketHandler extends TextWebSocketHandler {
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
         try {
             String payload = message.getPayload();
-            ObjectMapper objectMapper = new ObjectMapper();
             Map<String, Object> data = objectMapper.readValue(payload, new TypeReference<>() {});
 
             String action = (String) data.get("action");
             String userId = (String) data.get("userId");
 
             if ("joinQueue".equals(action)) {
+                if (userId == null || userId.isBlank()) {
+                    session.sendMessage(new TextMessage(
+                        objectMapper.createObjectNode()
+                            .put("action", "error")
+                            .put("message", "userId is required")
+                            .toString()
+                    ));
+                    return;
+                }
                 session.getAttributes().put("userId", userId);
-                Long position = webAPIService.getUserPosition(userId);
-                String responseMessage = String.format("{\"action\":\"position\", \"userId\":\"%s\", \"position\":%d}", userId, position);
-                session.sendMessage(new TextMessage(responseMessage));
+                sendCurrentState(session, userId);
             }
         } catch (Exception e) {
             log.error("WebSocket 메시지 처리 중 오류 발생: {}", e.getMessage());
@@ -77,15 +86,39 @@ public class QueueWebSocketHandler extends TextWebSocketHandler {
     }
 
     public void broadcastQueueStatus(long waitingCount, long runningCount, long finishedCount) {
-        String message = String.format("{\"waiting\": %d, \"running\": %d, \"finished\": %d}", waitingCount, runningCount, finishedCount);
+        String message = objectMapper.createObjectNode()
+                .put("action", "queueStatus")
+                .put("waiting", waitingCount)
+                .put("running", runningCount)
+                .put("finished", finishedCount)
+                .toString();
         for (WebSocketSession session : sessions) {
             try {
-                session.sendMessage(new TextMessage(message));
+                if (session.isOpen()) {
+                    session.sendMessage(new TextMessage(message));
+                }
             } catch (Exception e) {
                 log.error("WebSocket 메시지 전송 실패: {}", session.getId(), e);
             }
         }
         log.info("대기열 상태 브로드캐스트 완료: {}", message);
+    }
+
+    private void sendCurrentState(WebSocketSession session, String userId) throws Exception {
+        ObjectNode response = objectMapper.createObjectNode().put("userId", userId);
+        Long position = webAPIService.getUserPosition(userId);
+
+        if (position != null) {
+            response.put("action", "position").put("position", position);
+        } else if (webAPIService.isInRunning(userId)) {
+            response.put("action", "redirect").put("url", "/index.html");
+        } else {
+            response.put("action", "queueEmpty");
+        }
+
+        if (session.isOpen()) {
+            session.sendMessage(new TextMessage(response.toString()));
+        }
     }
 
     public void broadcastMessage(String message) {

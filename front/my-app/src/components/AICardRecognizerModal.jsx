@@ -256,7 +256,7 @@ const AICardRecognizerModal = ({ open, onClose, onPick, onTimeout }) => {
     const qid = vip ? 'vip' : (waitingQid || 'main');
     const WS_HOST =
       window.location.hostname === 'no86.xyz'
-        ? 'no86.xyz:8082'
+        ? 'no86.xyz:8043'
         : window.location.host;
     const WS_BASE = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + WS_HOST;
     const url = `${WS_BASE}/queue-status?group=predict&qid=${encodeURIComponent(qid)}&userId=${encodeURIComponent(userId)}`;

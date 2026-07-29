@@ -59,13 +59,12 @@ public class WebAPIController {
         boolean inRunning = webAPIService.isInRunning(userId);
 
         if (inRunning) {
-            response.put("redirectUrl", "/waitingRoomPage.html");
+            response.put("status", "RUNNING");
         } else if (inQueue) {
-            response.put("redirectUrl", "/index.html");
+            response.put("status", "WAITING");
         } else {
-            response.put("redirectUrl", "/"); // 기본값
+            response.put("status", "NOT_FOUND");
         }
-
         return ResponseEntity.ok(response);
     }
 
@@ -83,7 +82,7 @@ public class WebAPIController {
         }
     
         String message = String.format("{\"action\":\"position\", \"userId\":\"%s\", \"position\":%d}", userId, position);
-        webSocketHandler.broadcastMessage(message);
-        return ResponseEntity.ok("Position broadcasted for user " + userId);
+        webSocketHandler.sendMessageToUser(userId, message);
+        return ResponseEntity.ok("Position sent to user " + userId);
     }
 }

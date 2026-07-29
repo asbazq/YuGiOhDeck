@@ -39,8 +39,32 @@ public class JobService {
                 redisTemplate.opsForZSet().remove(WAITING_KEY, user);
     
                 String message = String.format("{\"action\":\"redirect\", \"userId\":\"%s\", \"url\":\"/index.html\"}", user);
-                webSocketHandler.broadcastMessage(message);
+                webSocketHandler.sendMessageToUser(String.valueOf(user), message);
             }
+        }
+
+        notifyWaitingPositions();
+        broadcastQueueStatus();
+    }
+
+    private void notifyWaitingPositions() {
+        Set<Object> waitingUsers = redisTemplate.opsForZSet().range(WAITING_KEY, 0, -1);
+        if (waitingUsers == null) {
+            return;
+        }
+
+        for (Object waitingUser : waitingUsers) {
+            String userId = String.valueOf(waitingUser);
+            Long rank = redisTemplate.opsForZSet().rank(WAITING_KEY, waitingUser);
+            if (rank == null) {
+                continue;
+            }
+            String message = String.format(
+                "{\"action\":\"position\", \"userId\":\"%s\", \"position\":%d}",
+                userId,
+                rank + 1
+            );
+            webSocketHandler.sendMessageToUser(userId, message);
         }
     }
     

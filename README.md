@@ -723,3 +723,74 @@ docker compose -f E:/Project/Yugioh/docker-compose.yml config
 - 이미 요청한 `검색어:페이지` 조합은 다시 요청하지 않도록 막았다.
 - 검색 결과 렌더 key에서 `index` 의존을 제거해 목록 식별을 안정화했다.
 
+
+---
+
+## 대기열 상태 동기화 수정 (2026-07-30)
+
+Redis 대기 인원이 0명인데도 브라우저에 이전 대기 순번이 남는 문제를 수정했다. 서버가 WebSocket 연결 직후 사용자의 실제 Redis 상태를 다시 확인하고, 전체 대기열 통계와 사용자별 상태 메시지를 명확히 구분하도록 변경했다.
+
+### 변경 내용
+
+* 클라이언트가 `joinQueue` 메시지를 보내면 WebSocket 세션에 `userId`를 저장한다.
+* Redis 상태를 확인해 사용자에게 다음 메시지 중 하나만 반환한다.
+  * Waiting 상태: `position`
+  * Running 상태: `redirect`
+  * Waiting과 Running 어디에도 없는 상태: `queueEmpty`
+* 대기열에 없는 사용자의 `position`이 `null`일 때 숫자 포맷 예외가 발생하지 않도록 분기 처리했다.
+* `position`과 `redirect` 메시지는 전체 브로드캐스트하지 않고 해당 `userId`의 열린 WebSocket 세션에만 전송한다.
+* 사용자가 Waiting에서 Running으로 이동하면 남은 대기 사용자들의 Redis `ZRANK`를 다시 조회해 최신 순번을 전송한다.
+* 전체 대기열 상태 메시지에 `"action": "queueStatus"`를 추가했다.
+* 전체 상태 메시지는 `session.isOpen()`으로 연결 상태를 확인한 후 전송한다.
+* `GET /api/queue/checkStatus`는 `WAITING`, `RUNNING`, `NOT_FOUND` 중 하나를 `status` 필드로 반환한다.
+* `POST /api/queue/broadcastPosition`도 지정된 사용자에게만 현재 순번을 전송한다.
+
+### WebSocket 메시지 예시
+
+```json
+{
+  "action": "queueStatus",
+  "waiting": 0,
+  "running": 0,
+  "finished": 0
+}
+```
+
+```json
+{
+  "action": "queueEmpty",
+  "userId": "user_xxx"
+}
+```
+
+### 포트 변경
+
+Spring 애플리케이션 포트를 `8082`에서 `8043`으로 변경했다.
+
+* Spring 기본 포트: `8043`
+* Docker 포트: `443:8043`, `8043:8043`
+* nginx upstream: `app:8043`
+* 프론트 AI WebSocket 운영 주소: `no86.xyz:8043`
+* CORS 운영 주소: `https://no86.xyz:8043`
+
+### 수정 파일
+
+* `src/main/java/com/card/Yugioh/webSocket/QueueWebSocketHandler.java`
+* `src/main/java/com/card/Yugioh/service/JobService.java`
+* `src/main/java/com/card/Yugioh/controller/WebAPIController.java`
+* `src/main/resources/application.properties`
+* `front/my-app/src/components/AICardRecognizerModal.jsx`
+* `nginx/nginx.conf`
+* `docker-compose.yml`
+
+요청서에 언급된 `WaitingRoomPage.html`은 현재 저장소에 존재하지 않는다. 현행 React 대기 화면은 `front/my-app/src/components/QueueApp.jsx`와 `QueueModal.jsx`가 담당한다.
+
+### 검증
+
+```bash
+./gradlew.bat -q classes
+cd front/my-app
+npm run build
+```
+
+백엔드 컴파일과 프론트 프로덕션 빌드가 완료됐다. 프론트 빌드에는 기존 ESLint 경고가 남아 있지만 이번 변경으로 발생한 컴파일 오류는 없다.
