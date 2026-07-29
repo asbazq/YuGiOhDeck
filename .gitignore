@@ -56,6 +56,11 @@ build-verify/
 .npm/
 pako.tgz
 
+# Local nginx and npm package files
+nginx/nginx.conf
+**/package.json
+**/package-lock.json
+
 
 # Spring Boot public resources
 src/main/resources/public/
