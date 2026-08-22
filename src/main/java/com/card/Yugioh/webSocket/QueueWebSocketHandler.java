@@ -32,13 +32,13 @@ public class QueueWebSocketHandler extends TextWebSocketHandler {
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
         sessions.add(session);
-        log.info("새로운 WebSocket 연결: {}", session.getId());
+        log.debug("새로운 WebSocket 연결: {}", session.getId());
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
         sessions.remove(session);
-        log.info("WebSocket 연결 종료: {}", session.getId());
+        log.debug("WebSocket 연결 종료: {}", session.getId());
     }
 
     @Override
@@ -101,7 +101,7 @@ public class QueueWebSocketHandler extends TextWebSocketHandler {
                 log.error("WebSocket 메시지 전송 실패: {}", session.getId(), e);
             }
         }
-        log.info("대기열 상태 브로드캐스트 완료: {}", message);
+        log.debug("대기열 상태 브로드캐스트 완료: {}", message);
     }
 
     private void sendCurrentState(WebSocketSession session, String userId) throws Exception {
@@ -131,7 +131,7 @@ public class QueueWebSocketHandler extends TextWebSocketHandler {
                 log.error("WebSocket 메시지 브로드캐스트 실패: {}", e.getMessage());
             }
         }
-        log.info("메시지 브로드캐스트 완료: {}", message);
+        log.debug("메시지 브로드캐스트 완료: {}", message);
     }
     
 }

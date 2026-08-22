@@ -2,12 +2,22 @@ package com.card.Yugioh.service;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
 import java.net.URL;
+import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 import org.apache.hc.client5.http.fluent.Request;
@@ -30,6 +40,14 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Service
 public class ImageService {
+    private static final int DOWNLOAD_CONCURRENCY = 4;
+    private static final int CONNECT_TIMEOUT_MS = 10_000;
+    private static final int READ_TIMEOUT_MS = 30_000;
+    private static final int MAX_DOWNLOAD_ATTEMPTS = 3;
+    private static final long REQUEST_INTERVAL_MS = 250L;
+    private static final long MAX_RETRY_AFTER_MS = 60_000L;
+    private final AtomicBoolean fetchInProgress = new AtomicBoolean(false);
+    private long nextRequestAtMillis;
     // sort - 카드 정렬 (atk, def, name, type, level, id, new).
     // 최신 카드 5장
     // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=5&offset=0&sort=new";
@@ -58,17 +76,24 @@ public class ImageService {
     }
 
     public int fetchAndSaveCardImages(String apiUrl) throws IOException {
-        String response = Request.get(apiUrl)
-                                 .execute()
-                                 .returnContent()
-                                 .asString();
+        if (!fetchInProgress.compareAndSet(false, true)) {
+            throw new ImageFetchAlreadyRunningException();
+        }
+        try {
+            String response = Request.get(apiUrl)
+                                     .execute()
+                                     .returnContent()
+                                     .asString();
 
-        JSONObject jsonResponse = new JSONObject(response);
-        JSONArray cardData = jsonResponse.getJSONArray("data");
-        List<CardModel> cardModels = convertToCardModels(cardData);
-        saveCardInfo(cardModels);
-        saveCardImages(cardData, cardModels);
-        return cardData.length();
+            JSONObject jsonResponse = new JSONObject(response);
+            JSONArray cardData = jsonResponse.getJSONArray("data");
+            List<CardModel> cardModels = convertToCardModels(cardData);
+            saveCardInfo(cardModels);
+            saveCardImages(cardData, cardModels);
+            return cardData.length();
+        } finally {
+            fetchInProgress.set(false);
+        }
     }
 
     private static List<CardModel> convertToCardModels(JSONArray cardData) {
@@ -89,6 +114,7 @@ public class ImageService {
     }
 
     private void saveCardImages(JSONArray cardData, List<CardModel> cardModels) throws IOException {
+        List<ImageDownloadTask> downloadTasks = new ArrayList<>();
         // Path savePath = Paths.get(System.getProperty("user.home"), "Desktop", "yugioh", "card_images");
         if (Files.notExists(savePath)) {
             log.info("Directory {} does not exist. Creating now...", savePath.toString());
@@ -132,28 +158,155 @@ public class ImageService {
 
                  // 큰 이미지 저장
                 if (Files.notExists(outputFile)) {
-                    saveImageFromUrl(imageUrl, outputFile);
+                    downloadTasks.add(new ImageDownloadTask(imageUrl, outputFile));
                 } else {
                     log.info("Large image {} exists. Skip.", outputFile.getFileName());
                 }
 
                 // 작은 이미지 저장
                 if (Files.notExists(smallOut)) {
-                    saveImageFromUrl(imageUrlSmall, smallOut);
+                    downloadTasks.add(new ImageDownloadTask(imageUrlSmall, smallOut));
                 } else {
                     log.info("Small image {} exists. Skip.", smallOut.getFileName());
                 }
 
             }
         }
+        downloadImages(downloadTasks);
         log.info("저장된 카드 수 : {}", cardData.length());
     }
 
-    private void saveImageFromUrl(String imageUrl, Path output) throws IOException {
-        try (InputStream in = new URL(imageUrl).openStream()) {
-            Files.copy(in, output);
+    private void downloadImages(List<ImageDownloadTask> tasks) {
+        if (tasks.isEmpty()) {
+            return;
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(DOWNLOAD_CONCURRENCY);
+        try {
+            List<Callable<Path>> jobs = tasks.stream()
+                .<Callable<Path>>map(task -> () -> {
+                    saveImageWithRetry(task.imageUrl(), task.output());
+                    return task.output();
+                })
+                .toList();
+
+            List<Future<Path>> futures = executor.invokeAll(jobs);
+            int successCount = 0;
+            for (int i = 0; i < futures.size(); i++) {
+                try {
+                    futures.get(i).get();
+                    successCount++;
+                } catch (ExecutionException e) {
+                    log.error("Image download failed after retries: {}", tasks.get(i).imageUrl(), e.getCause());
+                }
+            }
+            log.info("Image downloads complete. success={}, failed={}", successCount, tasks.size() - successCount);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Image downloads interrupted. Remaining downloads were cancelled.");
+        } finally {
+            executor.shutdownNow();
+            try {
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    log.warn("Image download executor did not terminate within 5 seconds.");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
         }
     }
+
+    private void saveImageWithRetry(String imageUrl, Path output) throws IOException {
+        IOException lastException = null;
+        for (int attempt = 1; attempt <= MAX_DOWNLOAD_ATTEMPTS; attempt++) {
+            try {
+                saveImageFromUrl(imageUrl, output);
+                return;
+            } catch (IOException e) {
+                lastException = e;
+                if (attempt < MAX_DOWNLOAD_ATTEMPTS) {
+                    long backoffMs = 500L * (1L << (attempt - 1));
+                    log.warn("Image download attempt {}/{} failed: {}. Retrying in {} ms",
+                        attempt, MAX_DOWNLOAD_ATTEMPTS, imageUrl, backoffMs);
+                    try {
+                        Thread.sleep(backoffMs);
+                    } catch (InterruptedException interrupted) {
+                        Thread.currentThread().interrupt();
+                        throw new IOException("Image download interrupted: " + imageUrl, interrupted);
+                    }
+                }
+            }
+        }
+        throw lastException;
+    }
+
+    private void saveImageFromUrl(String imageUrl, Path output) throws IOException {
+        awaitRequestPermit();
+        Path temporaryOutput = output.resolveSibling(output.getFileName() + ".part");
+        Files.deleteIfExists(temporaryOutput);
+
+        HttpURLConnection connection = (HttpURLConnection) new URL(imageUrl).openConnection();
+        connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+        connection.setReadTimeout(READ_TIMEOUT_MS);
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (compatible; CardImageCrawler/1.0)");
+        connection.setInstanceFollowRedirects(true);
+
+        try {
+            int statusCode = connection.getResponseCode();
+            if (statusCode == 429) {
+                long retryAfterMs = parseRetryAfterMillis(connection.getHeaderField("Retry-After"));
+                log.warn("Image server rate limit reached. Waiting {} ms: {}", retryAfterMs, imageUrl);
+                sleepForRetry(retryAfterMs, imageUrl);
+                throw new IOException("HTTP 429 for " + imageUrl);
+            }
+            if (statusCode < 200 || statusCode >= 300) {
+                throw new IOException("Unexpected HTTP status " + statusCode + " for " + imageUrl);
+            }
+            try (InputStream in = connection.getInputStream()) {
+                Files.copy(in, temporaryOutput, StandardCopyOption.REPLACE_EXISTING);
+            }
+            try {
+                Files.move(temporaryOutput, output, StandardCopyOption.ATOMIC_MOVE);
+            } catch (AtomicMoveNotSupportedException e) {
+                Files.move(temporaryOutput, output, StandardCopyOption.REPLACE_EXISTING);
+            }
+        } finally {
+            connection.disconnect();
+            Files.deleteIfExists(temporaryOutput);
+        }
+    }
+
+    private synchronized void awaitRequestPermit() throws IOException {
+        long now = System.currentTimeMillis();
+        long waitMs = nextRequestAtMillis - now;
+        if (waitMs > 0) {
+            sleepForRetry(waitMs, "rate limiter");
+        }
+        nextRequestAtMillis = System.currentTimeMillis() + REQUEST_INTERVAL_MS;
+    }
+
+    private long parseRetryAfterMillis(String retryAfter) {
+        if (retryAfter == null || retryAfter.isBlank()) {
+            return 1_000L;
+        }
+        try {
+            long seconds = Long.parseLong(retryAfter.trim());
+            return Math.min(Math.max(seconds * 1_000L, 1_000L), MAX_RETRY_AFTER_MS);
+        } catch (NumberFormatException e) {
+            return 1_000L;
+        }
+    }
+
+    private void sleepForRetry(long waitMs, String target) throws IOException {
+        try {
+            Thread.sleep(waitMs);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while waiting for " + target, e);
+        }
+    }
+
+    private record ImageDownloadTask(String imageUrl, Path output) {}
 
     public void saveCardInfo(List<CardModel> cardModels) {
         for (CardModel cardModel : cardModels) {

@@ -48,6 +48,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.net.URLEncoder;
@@ -61,6 +68,15 @@ import java.time.Duration;
 @Service
 @RequiredArgsConstructor
 public class CardService {
+
+    private static final int CRAWL_CONCURRENCY = 4;
+    private static final int MAX_FETCH_ATTEMPTS = 3;
+    private static final long SITE_REQUEST_INTERVAL_MS = 500L;
+    private static final long MAX_RETRY_AFTER_MS = 60_000L;
+    private final AtomicBoolean crawlAllInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean limitCrawlInProgress = new AtomicBoolean(false);
+    private final RequestRateLimiter fandomRateLimiter = new RequestRateLimiter(SITE_REQUEST_INTERVAL_MS);
+    private final RequestRateLimiter yugipediaRateLimiter = new RequestRateLimiter(SITE_REQUEST_INTERVAL_MS);
 
 
     private final CardRepository cardRepository;
@@ -103,7 +119,9 @@ public class CardService {
         options.setBinary(chromeBin);
         options.addArguments("--headless", // 브라우저 창을 표시하지 않음
                         "--no-sandbox", 
-                        "--disable-dev-shm-usage"
+                        "--disable-dev-shm-usage",
+                        "--disable-background-networking",
+                        "--blink-settings=imagesEnabled=false"
                         ); 
 
         return new ChromeDriver(options);
@@ -149,8 +167,80 @@ public class CardService {
         });
     }
 
-    @Transactional
     public void crawlAll() {
+        if (!crawlAllInProgress.compareAndSet(false, true)) {
+            log.warn("Korean card crawl is already running. Duplicate request ignored.");
+            return;
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(CRAWL_CONCURRENCY);
+        try {
+            List<CardModel> targets = cardRepository.findAllByHasKorNameFalseOrHasKorDescFalse();
+            List<Callable<CrawlResult>> jobs = targets.stream()
+                .map(card -> new CrawlTarget(card.getId(), card.getName(), card.getFrameType(),
+                    card.isHasKorName(), card.isHasKorDesc()))
+                .<Callable<CrawlResult>>map(target -> () -> crawlCard(target))
+                .toList();
+
+            List<Future<CrawlResult>> futures = executor.invokeAll(jobs);
+            Map<Long, CardModel> cardsById = targets.stream()
+                .collect(Collectors.toMap(CardModel::getId, card -> card));
+            int successCount = 0;
+            int failedCount = 0;
+            for (Future<CrawlResult> future : futures) {
+                try {
+                    CrawlResult result = future.get();
+                    CardModel card = cardsById.get(result.cardId());
+                    if (card == null) continue;
+                    if (!card.isHasKorName() && hasText(result.korName())) {
+                        card.setKorName(result.korName());
+                        card.setHasKorName(true);
+                    }
+                    if (!card.isHasKorDesc() && hasText(result.korDesc())) {
+                        card.setKorDesc(result.korDesc());
+                        card.setHasKorDesc(true);
+                    }
+                    successCount++;
+                } catch (ExecutionException e) {
+                    failedCount++;
+                    log.error("Card crawl task failed", e.getCause());
+                }
+            }
+            cardRepository.saveAll(targets);
+            log.info("Korean card crawl complete. success={}, failed={}", successCount, failedCount);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Korean card crawl interrupted.");
+        } finally {
+            executor.shutdownNow();
+            try {
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    log.warn("Card crawl executor did not terminate within 5 seconds.");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            crawlAllInProgress.set(false);
+        }
+    }
+
+    private CrawlResult crawlCard(CrawlTarget target) {
+        String encodedName = encodeCardName(target.name());
+        Document doc = fetchDocProtected("https://yugioh.fandom.com/wiki/" + encodedName, fandomRateLimiter);
+        Document spareDoc = doc == null
+            ? fetchDocProtected("https://yugipedia.com/wiki/" + encodedName, yugipediaRateLimiter)
+            : null;
+        String korName = target.hasKorName() ? null : extractKorName(doc, spareDoc);
+        String korDesc = target.hasKorDesc() ? null
+            : extractKorDesc(doc, spareDoc, PENDULUM_FRAMES.contains(target.frameType()));
+        return new CrawlResult(target.cardId(), korName, korDesc);
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
+    }
+
+    private void crawlAllLegacy() {
         List<CardModel> targets = cardRepository.findAllByHasKorNameFalseOrHasKorDescFalse();
 
         for (CardModel card : targets) {
@@ -194,6 +284,81 @@ public class CardService {
     }
 
     // Jsoup 로 문서 가져오기 (실패 시 null 리턴)
+    private Document fetchDocProtected(String url, RequestRateLimiter limiter) {
+        for (int attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+            try {
+                limiter.awaitPermit();
+                Connection.Response response = Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0 (compatible; CardCrawler/1.0)")
+                    .timeout(10_000)
+                    .ignoreHttpErrors(true)
+                    .execute();
+                int status = response.statusCode();
+                if (status == 200) return response.parse();
+                if (status == 404 || status == 410) return null;
+                if (status != 429 && (status < 500 || status >= 600)) {
+                    log.info("Card page returned HTTP {}: {}", status, url);
+                    return null;
+                }
+
+                long waitMs = status == 429
+                    ? parseRetryAfterMillis(response.header("Retry-After"))
+                    : 500L * (1L << (attempt - 1));
+                log.warn("Card page returned HTTP {}. Retrying in {} ms: {}", status, waitMs, url);
+                sleepForRetry(waitMs);
+            } catch (IOException e) {
+                if (attempt == MAX_FETCH_ATTEMPTS) {
+                    log.warn("Card page fetch failed after retries: {}", url);
+                    return null;
+                }
+                try {
+                    sleepForRetry(500L * (1L << (attempt - 1)));
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private long parseRetryAfterMillis(String retryAfter) {
+        if (retryAfter == null || retryAfter.isBlank()) return 1_000L;
+        try {
+            long seconds = Long.parseLong(retryAfter.trim());
+            return Math.min(Math.max(seconds * 1_000L, 1_000L), MAX_RETRY_AFTER_MS);
+        } catch (NumberFormatException e) {
+            return 1_000L;
+        }
+    }
+
+    private static void sleepForRetry(long waitMs) throws InterruptedException {
+        Thread.sleep(waitMs);
+    }
+
+    private record CrawlTarget(Long cardId, String name, String frameType,
+                               boolean hasKorName, boolean hasKorDesc) {}
+
+    private record CrawlResult(Long cardId, String korName, String korDesc) {}
+
+    private static final class RequestRateLimiter {
+        private final long intervalMs;
+        private long nextRequestAtMillis;
+
+        private RequestRateLimiter(long intervalMs) {
+            this.intervalMs = intervalMs;
+        }
+
+        private synchronized void awaitPermit() throws InterruptedException {
+            long waitMs = nextRequestAtMillis - System.currentTimeMillis();
+            if (waitMs > 0) Thread.sleep(waitMs);
+            nextRequestAtMillis = System.currentTimeMillis() + intervalMs;
+        }
+    }
+
     private Document fetchDoc(String url) {
         try {
             Connection.Response resp = Jsoup.connect(url)
@@ -446,6 +611,18 @@ public class CardService {
     // 리미티드 레귤레이션 크롤링
     @Transactional
     public List<BanlistChangeNoticeDto> limitCrawl() {
+        if (!limitCrawlInProgress.compareAndSet(false, true)) {
+            log.warn("Banlist crawl is already running. Duplicate request ignored.");
+            return List.of();
+        }
+        try {
+            return limitCrawlOnce();
+        } finally {
+            limitCrawlInProgress.set(false);
+        }
+    }
+
+    private List<BanlistChangeNoticeDto> limitCrawlOnce() {
         WebDriver driver = setup();
         try {
              // 웹 페이지 열기
