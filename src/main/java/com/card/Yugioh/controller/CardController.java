@@ -5,6 +5,7 @@ import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,9 +39,9 @@ public class CardController {
 
     @GetMapping("/search")
     @ResponseBody
-    public Page<CardMiniDto> CardSearch(@RequestParam String keyWord,
-                                        @RequestParam(required = false, defaultValue = "") String frameType,
-                                        Pageable pageable) {
+    public Slice<CardMiniDto> CardSearch(@RequestParam String keyWord,
+                                         @RequestParam(required = false, defaultValue = "") String frameType,
+                                         Pageable pageable) {
         return cardService.search(keyWord, frameType, pageable);
     }    
 

@@ -315,6 +315,167 @@ public void runCrawl() {
 ---
 
 
+### ❗ 동기식 API 호출과 크롤링 중 서버 부하 문제
+
+### 📌 증상
+
+* API 호출과 카드 이미지 크롤링을 동기 방식으로 처리하는데도 작업 중 서버와 컴퓨터가 느려졌다.
+* 이미지를 순차적으로 다운로드하면 하나의 요청이 완료될 때까지 다음 요청이 대기하여 전체 처리 시간도 길어졌다.
+
+### 📌 원인
+
+* 동기 처리는 한 번에 하나의 작업을 기다린다는 뜻이지, CPU·네트워크·디스크 자원을 적게 사용한다는 뜻은 아니다.
+* 반복문이 지연 없이 외부 API와 이미지 서버에 연속적으로 요청을 보내면, 호출 스레드가 계속 블로킹되고 연결·응답·파일 저장 작업이 집중된다.
+* 요청 간격이 없으면 대상 서버에서 `429 Too Many Requests`나 일시적인 네트워크 오류가 발생할 수 있고, 재시도가 더해져 오히려 전체 부하와 처리 시간이 늘어난다.
+
+### 📌 해결
+
+* 이미지 다운로드 작업을 `ExecutorService`의 고정 크기 스레드 풀에 분리해 여러 네트워크 I/O를 동시에 처리했다.
+* 스레드 수를 4개로 제한해 작업 개수만큼 스레드가 무제한으로 생성되지 않도록 했다.
+* 모든 워커가 공유하는 요청 속도 제한기에 `Thread.sleep()`을 적용해, 새 HTTP 요청의 시작 간격을 최소 250ms로 유지했다.
+* `429` 응답이나 일시적인 실패가 발생하면 지수 백오프로 재시도 간격을 늘려 대상 서버와 자체 서버의 부하를 조절했다.
+* 크롤링 중 애플리케이션 컨테이너가 호스트 CPU를 과도하게 점유하지 않도록 Docker CPU 사용량을 0.75코어로 제한했다.
+
+```java
+ExecutorService executor = Executors.newFixedThreadPool(4);
+List<Future<Path>> futures = executor.invokeAll(jobs);
+
+long waitMs = nextRequestAtMillis - System.currentTimeMillis();
+if (waitMs > 0) {
+    Thread.sleep(waitMs);
+}
+nextRequestAtMillis = System.currentTimeMillis() + 250L;
+```
+
+> 💡 현재 구조는 HTTP API가 즉시 응답하는 완전한 비동기 방식은 아니다. API 요청 스레드는 `invokeAll()`에서 전체 완료를 기다리지만, 실제 다운로드는 별도 워커에서 병렬 처리된다. `sleep`은 성능 향상용이 아니라 요청을 의도적으로 지연시켜 순간 부하와 요청 실패를 줄이는 속도 제한 장치다.
+
+실행 중인 컨테이너에는 다음과 같이 CPU 제한을 적용했다.
+
+```bash
+docker update --cpus="0.75" yugioh-app
+docker stats yugioh-app
+```
+
+`--cpus="0.75"`는 호스트 전체 CPU의 75%가 아니라 CPU 0.75코어 분량을 의미한다. 서버 전체 코어 용량의 75%로 제한하려면 `nproc`으로 코어 수를 확인한 뒤 해당 값에 0.75를 곱한다. 예를 들어 4코어 서버에서는 `--cpus="3"`을 사용한다.
+
+컨테이너가 다시 생성되어도 제한을 유지하려면 Compose의 `app` 서비스에 설정한다.
+
+```yaml
+services:
+  app:
+    cpus: 0.75
+```
+
+### 📌 결과
+
+* 네트워크 대기 시간이 서로 겹쳐져 순차 처리보다 전체 다운로드 시간을 단축했다.
+* 동시성과 요청 시작 속도에 상한을 두어 CPU, 네트워크, 파일 I/O가 순간적으로 몰리는 현상을 완화했다.
+* 외부 서버의 요청 제한을 존중하여 `429`, 타임아웃, 불필요한 재시도 가능성을 줄였다.
+* 컨테이너의 CPU 상한을 설정해 크롤링 중에도 호스트의 다른 프로세스가 사용할 CPU 여유를 확보했다.
+
+---
+
+### ❗ 카드 검색 전체 결과 수 집계로 인한 지연
+
+### 📌 증상
+
+* 카드 검색 결과를 페이지 단위로 조회할 때 목록 조회 외에 전체 검색 결과 수를 계산하는 쿼리가 함께 실행됐다.
+* 검색 조건이 많아질수록 목록 자체는 일부만 가져오더라도 전체 결과 수 계산을 위해 검색 대상 전체를 다시 검사할 수 있었다.
+
+### 📌 원인
+
+기존 검색 API와 Repository는 Spring Data JPA의 `Page`를 반환했다.
+
+```java
+Page<CardModel> searchByFullText(..., Pageable pageable);
+```
+
+`Page`는 `totalElements`와 `totalPages`를 제공해야 하므로 일반적으로 다음 두 종류의 쿼리를 수행한다.
+
+```sql
+-- 현재 페이지 데이터 조회
+SELECT ...
+FROM card_model
+WHERE ...
+LIMIT ?, ?;
+
+-- 전체 검색 결과 수 조회
+SELECT COUNT(*)
+FROM card_model
+WHERE ...;
+```
+
+카드 검색 조건에는 `MATCH ... AGAINST`뿐 아니라 다음과 같은 부분 문자열 검색도 포함된다.
+
+```sql
+LOWER(name) LIKE LOWER(CONCAT('%', :raw, '%'))
+LOWER(kor_name) LIKE LOWER(CONCAT('%', :raw, '%'))
+```
+
+앞에 `%`가 붙는 부분 문자열 검색과 컬럼에 적용된 `LOWER()` 함수는 일반 B-Tree 인덱스를 활용하기 어렵다. 따라서 전체 결과 수를 계산하는 `COUNT(*)`도 검색 데이터가 증가할수록 비용이 커질 수 있다.
+
+반면 프론트엔드는 전체 결과 수인 `totalElements`나 전체 페이지 수인 `totalPages`를 사용하지 않고 다음 값만 사용하고 있었다.
+
+* `content`: 현재 페이지의 검색 결과
+* `number`: 현재 페이지 번호
+* `last`: 마지막 페이지 여부
+
+즉, 화면에는 정확한 전체 검색 결과 수가 필요하지 않고 다음 페이지 존재 여부만 필요했다.
+
+### 📌 해결
+
+검색 API, Service, Repository의 반환 타입을 `Page`에서 `Slice`로 변경했다.
+
+```java
+Slice<CardModel> searchByFullText(
+    String query,
+    String frameType,
+    String raw,
+    Pageable pageable
+);
+```
+
+`Slice`는 전체 결과 수를 계산하지 않고 요청한 페이지 크기보다 한 건을 더 조회해 다음 페이지 존재 여부를 판단한다.
+
+```text
+size=20 요청
+→ 최대 21건 조회
+→ 21번째 결과가 있으면 hasNext=true, last=false
+→ 별도의 전체 COUNT 쿼리 없음
+```
+
+컨트롤러와 서비스도 동일하게 `Slice<CardMiniDto>`를 반환하도록 변경했다.
+
+```java
+public Slice<CardMiniDto> search(
+        String keyWord,
+        String frameType,
+        Pageable pageable) {
+    Slice<CardModel> cards = cardRepository.searchByFullText(...);
+    return cards.map(cardModel -> {
+        // 이미지와 제한 정보를 CardMiniDto로 변환
+        return new CardMiniDto(...);
+    });
+}
+```
+
+### 📌 결과
+
+* 카드 검색 요청마다 실행되던 전체 결과 수 집계를 제거했다.
+* 검색 데이터가 증가해도 사용하지 않는 `COUNT(*)` 때문에 응답 시간이 늘어나는 문제를 방지했다.
+* 기존 프론트에서 사용하는 `content`, `number`, `last` 응답 필드는 유지되어 무한 스크롤 로직을 변경하지 않아도 된다.
+* 정확한 전체 검색 결과 수는 더 이상 응답하지 않으며, 향후 화면에서 전체 개수가 필요해지면 별도 집계 전략을 다시 검토해야 한다.
+
+### 📌 검증
+
+```bash
+./gradlew.bat -q classes
+```
+
+백엔드 컴파일을 통과했으며 `Page`에 의존하던 카드 검색 계층을 모두 `Slice`로 변경했다.
+
+---
+
 ## 모니터링 및 분석
 
 * **Google Analytics**: 사용자 행동 분석

@@ -16,6 +16,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -128,10 +129,10 @@ public class CardService {
     }
 
 
-    public Page<CardMiniDto> search(String keyWord, String frameType, Pageable pageable) {
+    public Slice<CardMiniDto> search(String keyWord, String frameType, Pageable pageable) {
         String q = keyWord == null ? "" : keyWord.trim();
         String ftQuery = buildEnglishBooleanQueryIfEnglish(q);
-        Page<CardModel> cards = cardRepository.searchByFullText(
+        Slice<CardModel> cards = cardRepository.searchByFullText(
                 ftQuery,
                 frameType == null ? "" : frameType,
                 q,

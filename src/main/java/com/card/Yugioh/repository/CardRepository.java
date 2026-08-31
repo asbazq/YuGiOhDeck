@@ -2,6 +2,7 @@ package com.card.Yugioh.repository;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -60,10 +61,10 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
                 id ASC
             """,
             nativeQuery = true)
-    Page<CardModel> searchByFullText(@Param("query") String query,
-                                        @Param("frameType") String frameType,
-                                        @Param("raw") String raw,
-                                        Pageable pageable);
+    Slice<CardModel> searchByFullText(@Param("query") String query,
+                                      @Param("frameType") String frameType,
+                                      @Param("raw") String raw,
+                                      Pageable pageable);
     Optional<CardModel> findByName(String name);
     Optional<CardModel> findByKorName(String korName);
     
