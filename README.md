@@ -79,6 +79,30 @@
 
 ---
 
+### 테스트
+
+JDK 17을 설치하고 `JAVA_HOME`을 해당 JDK로 설정합니다.
+
+```bash
+bash ./gradlew test bootJar
+cd front/my-app
+npm ci
+CI=true npm test -- --watchAll=false --runInBand
+npm run build
+```
+
+백엔드 컨텍스트 테스트는 H2와 테스트용 설정을 사용하며, 정기 대기열 작업은 mock으로 대체합니다. 실제 MySQL·AI 서버 연결 검증은 별도로 필요합니다.
+
+대기열 Lua 통합 테스트는 `YUGIOH_TEST_REDIS_PORT`가 설정되었을 때 실행됩니다. 테스트가 대기열 키를 초기화하므로 반드시 전용 임시 Redis를 사용합니다. 저장소 루트에서 실행하세요.
+
+```bash
+docker run --rm -d --name yugioh-redis-test -p 127.0.0.1:16379:6379 redis:7-alpine
+YUGIOH_TEST_REDIS_PORT=16379 bash ./gradlew test --rerun-tasks
+docker stop yugioh-redis-test
+```
+
+회귀 테스트는 설정 키 공유, heartbeat 후 퇴장 상태 유지, 빈 슬롯 보충, 카드 데이터 검증, 한글 정보 보조 조회, AI 요청 취소 및 대기열 상태 판정을 확인합니다. WebSocket 입력 검증·교체된 연결의 heartbeat 차단·동시 알림 전송 직렬화와 느린 대기 순서 조회의 중복·오래된 응답 차단도 검증합니다.
+
 ## URL 덱 공유
 
 ```js

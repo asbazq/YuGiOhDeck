@@ -225,15 +225,22 @@ public class CardService {
         }
     }
 
-    private CrawlResult crawlCard(CrawlTarget target) {
+    CrawlResult crawlCard(CrawlTarget target) {
         String encodedName = encodeCardName(target.name());
         Document doc = fetchDocProtected("https://yugioh.fandom.com/wiki/" + encodedName, fandomRateLimiter);
-        Document spareDoc = doc == null
-            ? fetchDocProtected("https://yugipedia.com/wiki/" + encodedName, yugipediaRateLimiter)
-            : null;
-        String korName = target.hasKorName() ? null : extractKorName(doc, spareDoc);
+        boolean pendulum = PENDULUM_FRAMES.contains(target.frameType());
+        String korName = target.hasKorName() ? null : extractKorName(doc, null);
         String korDesc = target.hasKorDesc() ? null
-            : extractKorDesc(doc, spareDoc, PENDULUM_FRAMES.contains(target.frameType()));
+            : extractKorDesc(doc, null, pendulum);
+
+        // 페이지가 있어도 한글 필드가 없을 수 있으므로 필요한 필드가 빠졌을 때 보조 사이트를 조회한다.
+        boolean needsName = !target.hasKorName() && !hasText(korName);
+        boolean needsDesc = !target.hasKorDesc() && !hasText(korDesc);
+        if (needsName || needsDesc) {
+            Document spareDoc = fetchDocProtected("https://yugipedia.com/wiki/" + encodedName, yugipediaRateLimiter);
+            if (needsName) korName = extractKorName(null, spareDoc);
+            if (needsDesc) korDesc = extractKorDesc(null, spareDoc, pendulum);
+        }
         return new CrawlResult(target.cardId(), korName, korDesc);
     }
 
@@ -340,10 +347,10 @@ public class CardService {
         Thread.sleep(waitMs);
     }
 
-    private record CrawlTarget(Long cardId, String name, String frameType,
-                               boolean hasKorName, boolean hasKorDesc) {}
+    record CrawlTarget(Long cardId, String name, String frameType,
+                       boolean hasKorName, boolean hasKorDesc) {}
 
-    private record CrawlResult(Long cardId, String korName, String korDesc) {}
+    record CrawlResult(Long cardId, String korName, String korDesc) {}
 
     private static final class RequestRateLimiter {
         private final long intervalMs;

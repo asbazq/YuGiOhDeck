@@ -178,7 +178,7 @@ public class ImageService {
         }
     }
 
-    private static List<CardModel> convertToCardModels(JSONArray cardData) {
+    private static List<CardModel> convertToCardModels(JSONArray cardData) throws IOException {
         List<CardModel> cardModels = new ArrayList<>();
         // JSON 문자열을 Java 객체로 변환
         ObjectMapper objectMapper = new ObjectMapper();
@@ -187,9 +187,14 @@ public class ImageService {
             try {
                 // ObjectMapper.readValue() 메소드를 사용하여 JSON 문자열을 CardModel 클래스의 인스턴스로 변환
                 CardModel cardModel = objectMapper.readValue(cardJson.toString(), CardModel.class);
+                if (cardModel.getId() == null || cardModel.getName() == null || cardModel.getName().isBlank()) {
+                    throw new IOException("Card id and name are required");
+                }
                 cardModels.add(cardModel);
             } catch (IOException e) {
-                log.error("JSON을 CardModel로 변환하는 중 오류가 발생했습니다.", e);
+                // 이미지 JSON과 모델 목록은 같은 순서를 사용하므로 실패한 행을 건너뛰면 안 된다.
+                // 모든 카드가 검증되기 전에 DB에 쓰지 않도록 호출자에게 실패를 전달한다.
+                throw new IOException("Invalid card data at index " + i, e);
             }
         }
         return cardModels;

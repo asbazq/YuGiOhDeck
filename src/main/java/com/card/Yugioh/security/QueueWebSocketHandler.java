@@ -28,14 +28,18 @@ public class QueueWebSocketHandler extends TextWebSocketHandler implements Queue
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        if (session.getUri() == null) {
+        QueueIdentity identity = identityOf(session);
+        if (identity == null) {
+            try {
+                session.close(CloseStatus.POLICY_VIOLATION);
+            } catch (Exception ex) {
+                log.debug("Invalid queue socket could not be closed", ex);
+            }
             return;
         }
-
-        var qs = UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams();
-        String group = qs.getFirst("group");
-        String qid = qs.getFirst("qid");
-        String userId = qs.getFirst("userId");
+        String group = identity.group();
+        String qid = identity.qid();
+        String userId = identity.userId();
 
         String key = userKey(group, userId);
         WebSocketSession old = sessions.put(key, session);
@@ -50,20 +54,12 @@ public class QueueWebSocketHandler extends TextWebSocketHandler implements Queue
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        String group = null;
-        String qid = null;
-        String userId = null;
-        boolean removedCurrentSession = false;
-
-        if (session.getUri() != null) {
-            var qs = UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams();
-            group = qs.getFirst("group");
-            qid = qs.getFirst("qid");
-            userId = qs.getFirst("userId");
-            removedCurrentSession = sessions.remove(userKey(group, userId), session);
-        } else {
-            removedCurrentSession = sessions.entrySet().removeIf(entry -> entry.getValue().equals(session));
-        }
+        QueueIdentity identity = identityOf(session);
+        if (identity == null) return;
+        String group = identity.group();
+        String qid = identity.qid();
+        String userId = identity.userId();
+        boolean removedCurrentSession = sessions.remove(userKey(group, userId), session);
 
         log.debug(
             "WS CLOSE group={} qid={} userId={} activeSessionRemoved={}",
@@ -80,15 +76,12 @@ public class QueueWebSocketHandler extends TextWebSocketHandler implements Queue
 
     @Override
     protected void handleTextMessage(WebSocketSession session, TextMessage message) {
-        if (!"PING".equalsIgnoreCase(message.getPayload()) || session.getUri() == null) {
+        if (!"PING".equalsIgnoreCase(message.getPayload())) {
             return;
         }
-
-        var qs = UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams();
-        String group = qs.getFirst("group");
-        String userId = qs.getFirst("userId");
-        String qid = qs.getFirst("qid");
-        publisher.publishEvent(new UserPingEvent(group, qid, userId));
+        QueueIdentity identity = identityOf(session);
+        if (identity == null || sessions.get(userKey(identity.group(), identity.userId())) != session) return;
+        publisher.publishEvent(new UserPingEvent(identity.group(), identity.qid(), identity.userId()));
     }
 
     @Override
@@ -106,7 +99,10 @@ public class QueueWebSocketHandler extends TextWebSocketHandler implements Queue
 
     private void sendSilently(WebSocketSession session, String message) {
         try {
-            session.sendMessage(new TextMessage(message));
+            // Scheduler and request threads may notify the same socket concurrently.
+            synchronized (session) {
+                if (session.isOpen()) session.sendMessage(new TextMessage(message));
+            }
         } catch (Exception ex) {
             log.warn("WS send fail {}", session.getId(), ex);
         }
@@ -115,4 +111,18 @@ public class QueueWebSocketHandler extends TextWebSocketHandler implements Queue
     private static String userKey(String group, String userId) {
         return group + "|" + userId;
     }
+
+    private static QueueIdentity identityOf(WebSocketSession session) {
+        if (session.getUri() == null) return null;
+        var query = UriComponentsBuilder.fromUri(session.getUri()).build().getQueryParams();
+        String group = query.getFirst("group");
+        String qid = query.getFirst("qid");
+        String userId = query.getFirst("userId");
+        if (!("site".equals(group) || "predict".equals(group))
+                || !("main".equals(qid) || "vip".equals(qid))
+                || userId == null || userId.isBlank()) return null;
+        return new QueueIdentity(group, qid, userId);
+    }
+
+    private record QueueIdentity(String group, String qid, String userId) {}
 }
