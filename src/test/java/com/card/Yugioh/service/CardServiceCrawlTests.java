@@ -11,7 +11,38 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class CardServiceCrawlTests {
-    private final CardService service = new CardService(null, null, null, null, null);
+    private final CardService service = new CardService(null, null, null, null, null, null);
+
+    @Test
+    void missingTranslationAndFrameTypeAreNormalPendingResults() throws Exception {
+        Connection missing = connection(Jsoup.parse("<html><body>No Korean translation yet</body></html>"));
+        try (MockedStatic<Jsoup> jsoup = mockStatic(Jsoup.class)) {
+            jsoup.when(() -> Jsoup.connect(anyString())).thenReturn(missing);
+            var result = service.crawlCard(new CardService.CrawlTarget(1L, "New Card", null, false, false));
+            assertThat(result.korName()).isNull();
+            assertThat(result.korDesc()).isNull();
+        }
+    }
+
+    @Test
+    void oneSaveFailureDoesNotStopOtherTranslations() {
+        var cards = mock(com.card.Yugioh.repository.CardRepository.class);
+        var persistence = mock(CardPersistenceService.class);
+        CardService crawler = spy(new CardService(cards, persistence, null, null, null, null));
+        var first = new com.card.Yugioh.model.CardModel(); first.setId(1L); first.setName("First");
+        var second = new com.card.Yugioh.model.CardModel(); second.setId(2L); second.setName("Second");
+        when(cards.findTranslationPending()).thenReturn(java.util.List.of(first, second));
+        doAnswer(invocation -> {
+            CardService.CrawlTarget target = invocation.getArgument(0);
+            return new CardService.CrawlResult(target.cardId(), "이름", "설명");
+        }).when(crawler).crawlCard(any());
+        when(persistence.saveTranslation(1L, "이름", "설명")).thenThrow(new IllegalStateException("conflict"));
+        when(persistence.saveTranslation(2L, "이름", "설명"))
+            .thenReturn(com.card.Yugioh.model.TranslationStatus.READY);
+        crawler.crawlAll();
+        verify(persistence).saveTranslation(2L, "이름", "설명");
+        verify(cards, never()).saveAll(any());
+    }
 
     @Test
     void successfulPrimaryPageWithMissingFieldsFallsBack() throws Exception {

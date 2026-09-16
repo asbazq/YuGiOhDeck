@@ -27,10 +27,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import com.card.Yugioh.model.CardImage;
-import com.card.Yugioh.model.CardModel;
-import com.card.Yugioh.repository.CardImgRepository;
-import com.card.Yugioh.repository.CardRepository;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
 import jakarta.annotation.PostConstruct;
 import lombok.RequiredArgsConstructor;
@@ -107,18 +103,7 @@ public class ImageService {
     private final AtomicBoolean fetchInProgress = new AtomicBoolean(false);
     // 모든 다운로드 워커가 공유하는 다음 요청 허용 시각. synchronized 메서드 안에서만 갱신한다.
     private long nextRequestAtMillis;
-    // sort - 카드 정렬 (atk, def, name, type, level, id, new).
-    // 최신 카드 5장
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=5&offset=0&sort=new";
-    // 금지 카드 최신순
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?banlist=ocg&sort=new";
-    // 모든 카드
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php";
-    // String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=500&offset=0&sort=new";
-
-    private final CardRepository cardRepository;
-    private final CardImgRepository cardImgRepository;
-    // private final Path savePath = Paths.get("D:/project/card_images");
+    private final CardPersistenceService cardPersistence;
 
     @Value("${card.image.save-path}")
     private String savePathString;
@@ -146,7 +131,7 @@ public class ImageService {
      * - 따라서 반환 타입이 Future가 아니며 호출자 관점에서는 동기 메서드다.
      *
      * @param apiUrl 카드 목록을 반환하는 YGOPRODeck API 주소
-     * @return API 응답의 카드 개수. 이미지 다운로드 성공 개수와는 다르다.
+     * @return 메타데이터 저장에 성공한 카드 개수. 이미지 다운로드 성공 개수와는 다르다.
      * @throws IOException API 목록 요청이나 저장 디렉터리 처리 자체가 실패한 경우
      */
     public int fetchAndSaveCardImages(String apiUrl) throws IOException {
@@ -164,113 +149,37 @@ public class ImageService {
             JSONObject jsonResponse = new JSONObject(response);
             JSONArray cardData = jsonResponse.getJSONArray("data");
 
-            // 2. JSON을 엔티티로 변환하고 카드 정보를 먼저 저장한다.
-            // 이미지 엔티티가 CardModel을 외래 키로 참조하므로 카드 저장이 선행되어야 한다.
-            List<CardModel> cardModels = convertToCardModels(cardData);
-            saveCardInfo(cardModels);
-
-            // 3. 이미지 메타데이터는 단일 스레드에서 DB에 저장하고 실제 파일만 병렬 다운로드한다.
-            saveCardImages(cardData, cardModels);
-            return cardData.length();
+            Files.createDirectories(savePath);
+            Files.createDirectories(saveSmallPath);
+            List<ImageDownloadTask> downloads = new ArrayList<>();
+            int processed = 0;
+            for (int i = 0; i < cardData.length(); i++) {
+                try {
+                    List<CardImage> images = cardPersistence.ingest(cardData.getJSONObject(i).toString());
+                    processed++;
+                    for (CardImage image : images) {
+                        queueMissingImage(downloads, image.getImageUrl(), savePath.resolve(image.getId() + ".jpg"));
+                        queueMissingImage(downloads, image.getImageUrlSmall(), saveSmallPath.resolve(image.getId() + ".jpg"));
+                    }
+                } catch (Exception e) {
+                    log.error("Card ingestion failed at index {}. Other cards will continue.", i, e);
+                }
+            }
+            downloadImages(downloads);
+            log.info("Card ingestion complete. saved={}, failed={}", processed, cardData.length() - processed);
+            if (!cardData.isEmpty() && processed == 0) {
+                throw new IOException("No cards could be ingested; check per-card errors");
+            }
+            return processed;
         } finally {
-            // 성공, 예외, 인터럽트 여부와 관계없이 잠금을 해제해 다음 실행이 가능하게 한다.
             fetchInProgress.set(false);
         }
     }
 
-    private static List<CardModel> convertToCardModels(JSONArray cardData) throws IOException {
-        List<CardModel> cardModels = new ArrayList<>();
-        // JSON 문자열을 Java 객체로 변환
-        ObjectMapper objectMapper = new ObjectMapper();
-        for (int i = 0; i < cardData.length(); i++) {
-            JSONObject cardJson = cardData.getJSONObject(i);
-            try {
-                // ObjectMapper.readValue() 메소드를 사용하여 JSON 문자열을 CardModel 클래스의 인스턴스로 변환
-                CardModel cardModel = objectMapper.readValue(cardJson.toString(), CardModel.class);
-                if (cardModel.getId() == null || cardModel.getName() == null || cardModel.getName().isBlank()) {
-                    throw new IOException("Card id and name are required");
-                }
-                cardModels.add(cardModel);
-            } catch (IOException e) {
-                // 이미지 JSON과 모델 목록은 같은 순서를 사용하므로 실패한 행을 건너뛰면 안 된다.
-                // 모든 카드가 검증되기 전에 DB에 쓰지 않도록 호출자에게 실패를 전달한다.
-                throw new IOException("Invalid card data at index " + i, e);
-            }
+    private void queueMissingImage(List<ImageDownloadTask> downloads, String url, Path output) {
+        if (url != null && !url.isBlank() && Files.notExists(output)) {
+            downloads.add(new ImageDownloadTask(url, output));
         }
-        return cardModels;
-    }
-
-    /**
-     * 이미지 DB 행을 저장하고, 로컬에 없는 파일을 다운로드 작업 목록으로 만든다.
-     *
-     * 이 메서드의 반복문 안에서는 다운로드하지 않는다. 반복문 안에서 바로 다운로드하면
-     * 다시 한 장씩 기다리는 순차 방식이 되기 때문이다. 먼저 모든 ImageDownloadTask를
-     * 수집하고 마지막에 한 번 downloadImages에 넘긴다.
-     */
-    private void saveCardImages(JSONArray cardData, List<CardModel> cardModels) throws IOException {
-        // 워커 스레드에 JPA 엔티티를 넘기지 않기 위해 URL과 출력 경로만 작업 목록에 담는다.
-        List<ImageDownloadTask> downloadTasks = new ArrayList<>();
-        // Path savePath = Paths.get(System.getProperty("user.home"), "Desktop", "yugioh", "card_images");
-        if (Files.notExists(savePath)) {
-            log.info("Directory {} does not exist. Creating now...", savePath.toString());
-            Files.createDirectories(savePath);
-        } else {
-            log.info("Directory {} already exists.", savePath.toString());
-        }
-
-        if (Files.notExists(saveSmallPath)) {
-            log.info("Directory {} does not exist. Creating now...", saveSmallPath.toString());
-            Files.createDirectories(saveSmallPath);
-        } else {
-            log.info("Directory {} already exists.", saveSmallPath.toString());
-        }
-
-        for (int i = 0; i < cardData.length(); i++) {
-            JSONObject card = cardData.getJSONObject(i);
-            JSONArray cardImages = card.getJSONArray("card_images");
-
-            CardModel baseModel = cardModels.get(i);
-
-            // ID 또는 이름으로 기존 모델을 가져오고 모델이 없는 경우 해당 모델을 유지 -> 이미지를 저장할 때 외래 키 위반 방지
-            CardModel referenceModel = cardRepository.findById(baseModel.getId())
-                .orElseGet(() -> {
-                    CardModel byName = cardRepository.findByName(baseModel.getName()).orElse(null);
-                    return byName != null ? byName : cardRepository.saveAndFlush(baseModel);
-                });
-
-            for (int j = 0; j < cardImages.length(); j++) {
-                JSONObject imageInfo = cardImages.getJSONObject(j);
-                String imageUrl = imageInfo.getString("image_url");
-                Long imageId = imageInfo.getLong("id");
-                String imageUrlSmall = imageInfo.getString("image_url_small");
-                String imageUrlCropped = imageInfo.getString("image_url_cropped");
-                CardImage cardImage = new CardImage(imageId, imageUrl, imageUrlSmall, imageUrlCropped, referenceModel);
-
-                // DB 작업은 현재 호출 스레드에서 수행한다. JPA EntityManager는 스레드 안전하지 않다.
-                cardImgRepository.save(cardImage);
-                Path outputFile = savePath.resolve(imageId + ".jpg");
-                Path smallOut = saveSmallPath.resolve(imageId + ".jpg");
-                // File outputFile = new File(savePath, imageId + ".jpg");
-
-                // 파일이 없는 경우에만 작업을 예약한다. 여기서는 아직 네트워크 요청을 보내지 않는다.
-                if (Files.notExists(outputFile)) {
-                    downloadTasks.add(new ImageDownloadTask(imageUrl, outputFile));
-                } else {
-                    log.info("Large image {} exists. Skip.", outputFile.getFileName());
-                }
-
-                // 원본과 작은 이미지를 각각 독립 작업으로 만들어 같은 스레드 풀에서 처리한다.
-                if (Files.notExists(smallOut)) {
-                    downloadTasks.add(new ImageDownloadTask(imageUrlSmall, smallOut));
-                } else {
-                    log.info("Small image {} exists. Skip.", smallOut.getFileName());
-                }
-
-            }
-        }
-        // DB 관련 반복이 모두 끝난 후 순수 파일 다운로드 작업만 병렬로 실행한다.
-        downloadImages(downloadTasks);
-        log.info("저장된 카드 수 : {}", cardData.length());
     }
 
     /**
@@ -479,14 +388,4 @@ public class ImageService {
      */
     private record ImageDownloadTask(String imageUrl, Path output) {}
 
-    public void saveCardInfo(List<CardModel> cardModels) {
-        for (CardModel cardModel : cardModels) {
-            if (cardRepository.existsById(cardModel.getId()) || cardRepository.existsByName(cardModel.getName())) {
-                log.info("카드 {} 는 DB에 이미 존재합니다. 저장을 건너뜁니다.", cardModel.getName());
-                continue;
-            }
-            cardRepository.save(cardModel);
-            log.info("카드 이름 : {}", cardModel.getName());
-        }
-    }
 }

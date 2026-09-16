@@ -21,7 +21,7 @@ export default function QueueAdminPage() {
 
   // 패치 파라미터
   const [cardNum, setCardNum] = useState(500);
-  const [cardOffset, setCardOffset] = useState(20);
+  const [cardOffset, setCardOffset] = useState(0);
   const [cardSort, setCardSort] = useState('new');
   const [loadingApi, setLoadingApi] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);

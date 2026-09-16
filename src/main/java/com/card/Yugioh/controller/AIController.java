@@ -61,18 +61,18 @@ public class AIController {
                                 .body("No card detected."));
                     }
 
-                    PredictDto top1 = cardLookupService.enrich(ranked.get(0));
-                    if (top1 == null) {
+                    List<PredictDto> visible = ranked.stream()
+                            .map(cardLookupService::enrich)
+                            .filter(Objects::nonNull)
+                            .limit(5)
+                            .toList();
+                    if (visible.isEmpty()) {
                         return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .body("No card detected."));
                     }
 
-                    List<PredictDto> top4 = ranked.stream()
-                            .skip(1)
-                            .map(cardLookupService::enrich)
-                            .filter(Objects::nonNull)
-                            .limit(4)
-                            .collect(Collectors.toList());
+                    PredictDto top1 = visible.get(0);
+                    List<PredictDto> top4 = visible.subList(1, visible.size());
 
                     int count = embeds.size();
                     double elapsed = se.getElapsed() == null ? 0.0 : se.getElapsed();
@@ -137,18 +137,18 @@ public class AIController {
                                 .body("No card detected."));
                     }
 
-                    PredictDto top1 = cardLookupService.enrich(ranked.get(0));
-                    if (top1 == null) {
+                    List<PredictDto> visible = ranked.stream()
+                            .map(cardLookupService::enrich)
+                            .filter(Objects::nonNull)
+                            .limit(5)
+                            .toList();
+                    if (visible.isEmpty()) {
                         return Mono.just(ResponseEntity.status(HttpStatus.BAD_REQUEST)
                                 .body("No card detected."));
                     }
 
-                    List<PredictDto> top4 = ranked.stream()
-                            .skip(1)
-                            .map(cardLookupService::enrich)
-                            .filter(Objects::nonNull)
-                            .limit(4)
-                            .collect(Collectors.toList());
+                    PredictDto top1 = visible.get(0);
+                    List<PredictDto> top4 = visible.subList(1, visible.size());
 
                     int count = results == null ? 0 : results.size();
                     double elapsed = pr.getElapsed() == null ? 0.0 : pr.getElapsed();

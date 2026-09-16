@@ -13,6 +13,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.EntityListeners;
 import jakarta.persistence.Id;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Transient;
+import jakarta.persistence.PrePersist;
+import jakarta.persistence.PreUpdate;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -50,5 +55,29 @@ public class CardModel {
     @OneToMany(mappedBy = "cardModel")
     private List<CardImage> cardImages;
     private boolean hasKorName;
-    private boolean hasKorDesc;    
+    private boolean hasKorDesc;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private KoreanReleaseStatus koreanReleaseStatus = KoreanReleaseStatus.UNKNOWN;
+
+    @Transient
+    public TranslationStatus getTranslationStatus() {
+        boolean namePresent = korName != null && !korName.isBlank();
+        boolean descPresent = korDesc != null && !korDesc.isBlank();
+        if (namePresent && descPresent) return TranslationStatus.READY;
+        return namePresent || descPresent ? TranslationStatus.PARTIAL : TranslationStatus.PENDING;
+    }
+
+    @Transient
+    public boolean isVisibleInKoreanCatalog() {
+        return korName != null && !korName.isBlank()
+            && koreanReleaseStatus != KoreanReleaseStatus.UNRELEASED;
+    }
+
+    @PrePersist
+    @PreUpdate
+    public void syncTranslationFlags() {
+        hasKorName = korName != null && !korName.isBlank();
+        hasKorDesc = korDesc != null && !korDesc.isBlank();
+    }
 }

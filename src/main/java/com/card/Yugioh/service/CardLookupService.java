@@ -26,9 +26,12 @@ public class CardLookupService {
         Long id = pc.getId();
         Optional<CardModel> modelOpt = cardRepository.findById(id);
         Optional<CardImage> imgOpt   = cardImgRepository.findById(id);
+        // Alternate artworks have an image ID different from their parent card ID.
+        CardModel model = imgOpt.map(CardImage::getCardModel).orElseGet(() -> modelOpt.orElse(null));
+        if (model == null || !model.isVisibleInKoreanCatalog()) return null;
 
-        String korName = modelOpt.map(CardModel::getKorName).orElse(null);
-        String frameType = modelOpt.map(CardModel::getFrameType).orElse(null);
+        String korName = model.getKorName();
+        String frameType = model.getFrameType();
 
         String imageUrl = null, imageUrlSmall = null, imageUrlCropped = null;
         if (imgOpt.isPresent()) {

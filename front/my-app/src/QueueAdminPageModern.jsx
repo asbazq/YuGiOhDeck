@@ -13,7 +13,7 @@ function QueueAdminPageModern() {
   const [capPredict, setCapPredict] = useState('');
   const [message, setMessage] = useState('');
   const [cardNum, setCardNum] = useState(500);
-  const [cardOffset, setCardOffset] = useState(20);
+  const [cardOffset, setCardOffset] = useState(0);
   const [cardSort, setCardSort] = useState('new');
   const [loadingApi, setLoadingApi] = useState(false);
   const [loadingAll, setLoadingAll] = useState(false);

@@ -15,6 +15,9 @@ import java.util.Optional;
 
 
 public interface CardRepository extends JpaRepository<CardModel, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM CardModel c WHERE c.id = :id")
+    Optional<CardModel> findByIdForUpdate(@Param("id") Long id);
     // @Query("SELECT c FROM CardModel c WHERE LOWER(c.name) LIKE LOWER(CONCAT ('%', :query, '%'))")
     // List<CardModel> searchByNameContaining(@Param("query")String query);
 
@@ -27,8 +30,9 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     @Query(value = """
             SELECT *
             FROM deck.card_model
-            WHERE
-            (
+            WHERE NULLIF(TRIM(kor_name), '') IS NOT NULL
+            AND COALESCE(korean_release_status, 'UNKNOWN') <> 'UNRELEASED'
+            AND (
                 :frameType = ''
                 OR (:frameType = 'monster' AND frame_type IN ('normal', 'effect', 'ritual'))
                 OR (:frameType = 'pendulum' AND frame_type IN ('effect_pendulum', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum', 'normal_pendulum'))
@@ -73,4 +77,11 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     List<CardModel> findAllByKorNameIsNullOrKorDescIsNull();
     List<CardModel> findAllByHasKorNameFalseOrHasKorDescFalse();
     Page<CardModel> findByHasKorNameFalseOrHasKorDescFalse(Pageable pageable);
+    @Query("SELECT c FROM CardModel c WHERE c.korName IS NULL OR TRIM(c.korName) = '' "
+         + "OR c.korDesc IS NULL OR TRIM(c.korDesc) = '' ORDER BY c.id")
+    List<CardModel> findTranslationPending();
+
+    @Query("SELECT c FROM CardModel c WHERE c.korName IS NULL OR TRIM(c.korName) = '' "
+         + "OR c.korDesc IS NULL OR TRIM(c.korDesc) = ''")
+    Page<CardModel> findTranslationPending(Pageable pageable);
 }

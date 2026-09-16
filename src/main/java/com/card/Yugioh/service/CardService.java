@@ -81,6 +81,7 @@ public class CardService {
 
 
     private final CardRepository cardRepository;
+    private final CardPersistenceService cardPersistence;
     private final CardImgRepository cardImgRepository;
     private final LimitRegulationRepository limitRegulationRepository;
     private final LimitRegulationChangeRepository changeRepo;
@@ -176,39 +177,29 @@ public class CardService {
 
         ExecutorService executor = Executors.newFixedThreadPool(CRAWL_CONCURRENCY);
         try {
-            List<CardModel> targets = cardRepository.findAllByHasKorNameFalseOrHasKorDescFalse();
+            List<CardModel> targets = cardRepository.findTranslationPending();
             List<Callable<CrawlResult>> jobs = targets.stream()
                 .map(card -> new CrawlTarget(card.getId(), card.getName(), card.getFrameType(),
-                    card.isHasKorName(), card.isHasKorDesc()))
+                    hasText(card.getKorName()), hasText(card.getKorDesc())))
                 .<Callable<CrawlResult>>map(target -> () -> crawlCard(target))
                 .toList();
 
             List<Future<CrawlResult>> futures = executor.invokeAll(jobs);
-            Map<Long, CardModel> cardsById = targets.stream()
-                .collect(Collectors.toMap(CardModel::getId, card -> card));
-            int successCount = 0;
+            int readyCount = 0;
+            int pendingCount = 0;
             int failedCount = 0;
             for (Future<CrawlResult> future : futures) {
                 try {
                     CrawlResult result = future.get();
-                    CardModel card = cardsById.get(result.cardId());
-                    if (card == null) continue;
-                    if (!card.isHasKorName() && hasText(result.korName())) {
-                        card.setKorName(result.korName());
-                        card.setHasKorName(true);
-                    }
-                    if (!card.isHasKorDesc() && hasText(result.korDesc())) {
-                        card.setKorDesc(result.korDesc());
-                        card.setHasKorDesc(true);
-                    }
-                    successCount++;
-                } catch (ExecutionException e) {
+                    var status = cardPersistence.saveTranslation(result.cardId(), result.korName(), result.korDesc());
+                    if (status == com.card.Yugioh.model.TranslationStatus.READY) readyCount++;
+                    else pendingCount++;
+                } catch (ExecutionException | RuntimeException e) {
                     failedCount++;
-                    log.error("Card crawl task failed", e.getCause());
+                    log.error("Card translation failed; other cards will continue", e);
                 }
             }
-            cardRepository.saveAll(targets);
-            log.info("Korean card crawl complete. success={}, failed={}", successCount, failedCount);
+            log.info("Korean card crawl complete. ready={}, pending={}, failed={}", readyCount, pendingCount, failedCount);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Korean card crawl interrupted.");
@@ -228,7 +219,7 @@ public class CardService {
     CrawlResult crawlCard(CrawlTarget target) {
         String encodedName = encodeCardName(target.name());
         Document doc = fetchDocProtected("https://yugioh.fandom.com/wiki/" + encodedName, fandomRateLimiter);
-        boolean pendulum = PENDULUM_FRAMES.contains(target.frameType());
+        boolean pendulum = target.frameType() != null && PENDULUM_FRAMES.contains(target.frameType());
         String korName = target.hasKorName() ? null : extractKorName(doc, null);
         String korDesc = target.hasKorDesc() ? null
             : extractKorDesc(doc, null, pendulum);
@@ -246,39 +237,6 @@ public class CardService {
 
     private static boolean hasText(String value) {
         return value != null && !value.isBlank();
-    }
-
-    private void crawlAllLegacy() {
-        List<CardModel> targets = cardRepository.findAllByHasKorNameFalseOrHasKorDescFalse();
-
-        for (CardModel card : targets) {
-
-            String encodedName = encodeCardName(card.getName());
-            String url1 = "https://yugioh.fandom.com/wiki/" + encodedName;
-            String url2 = "https://yugipedia.com/wiki/"   + encodedName;
-
-            Document doc = fetchDoc(url1);
-            Document spareDoc = (doc == null) ? fetchDoc(url2) : null;
-
-            // 이미 채워져 있지 않은 필드만 채움 (불필요한 재작업 방지)
-            if (!card.isHasKorName()) {
-                String kn = extractKorName(doc, spareDoc);
-                if (kn != null && !kn.isBlank()) {
-                    card.setKorName(kn);
-                    card.setHasKorName(true); // Generated Column이면 불필요
-                }
-            }
-            if (!card.isHasKorDesc()) {
-                boolean isPendulum = PENDULUM_FRAMES.contains(card.getFrameType());
-                String kd = extractKorDesc(doc, spareDoc, isPendulum);
-                if (kd != null && !kd.isBlank()) {
-                    card.setKorDesc(kd);
-                    card.setHasKorDesc(true); // Generated Column이면 불필요
-                }
-            }
-        }
-        // 루프마다 save() X → 한 번에 flush
-        cardRepository.saveAll(targets);
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -364,55 +322,6 @@ public class CardService {
             long waitMs = nextRequestAtMillis - System.currentTimeMillis();
             if (waitMs > 0) Thread.sleep(waitMs);
             nextRequestAtMillis = System.currentTimeMillis() + intervalMs;
-        }
-    }
-
-    private Document fetchDoc(String url) {
-        try {
-            Connection.Response resp = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (compatible; CardCrawler/1.0)")
-                .timeout(10_000)
-                .ignoreHttpErrors(true)  // ← 중요: 404도 예외로 던지지 않음
-                .execute();
-
-            int sc = resp.statusCode();
-            if (sc == 200) {
-                return resp.parse();
-            }
-
-            // 404/410: 문서 없음 → 조용히 스킵(요약 로그만)
-            if (sc == 404 || sc == 410) {
-                log.info("문서 없음({}, {})", sc, url);
-                return null;
-            }
-
-            // 429/5xx: 일시 오류 → 한 번 재시도 (백오프)
-            if (sc == 429 || (sc >= 500 && sc < 600)) {
-                log.warn("일시 오류로 재시도({}): {}", sc, url);
-                Thread.sleep(500L);
-                Connection.Response retry = Jsoup.connect(url)
-                    .userAgent("Mozilla/5.0 (compatible; CardCrawler/1.0)")
-                    .timeout(10_000)
-                    .ignoreHttpErrors(true)
-                    .execute();
-                if (retry.statusCode() == 200) {
-                    return retry.parse();
-                }
-                log.warn("재시도 실패({}, {}): {}", retry.statusCode(), sc, url);
-                return null;
-            }
-
-            // 기타 코드: 정보 로그만 남기고 스킵
-            log.info("문서 가져오기 비정상 상태({}): {}", sc, url);
-            return null;
-
-        } catch (IOException e) {
-            // 네트워크 예외만 간단 메시지
-            log.warn("문서 가져오기 실패(IO): {}", url);
-            return null;
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            return null;
         }
     }
 
@@ -587,6 +496,11 @@ public class CardService {
         } else {
             cardModel = cardRepository.findByName(q)
                 .orElseThrow(() -> new IllegalArgumentException("해당 카드가 존재하지 않습니다."));
+        }
+
+        if (!cardModel.isVisibleInKoreanCatalog()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "한국어 서비스에 아직 공개되지 않은 카드입니다.");
         }
 
         String displayName = (cardModel.getKorName() != null && !cardModel.getKorName().isBlank())
