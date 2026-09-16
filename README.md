@@ -1,5 +1,21 @@
 ### YuGiOhDeck
 
+## 이미지 학습 트리거
+
+이미지 수집 완료를 학습 요청으로 연결하지 않습니다. `ImageService`는 이미지와
+카드 메타데이터 수집을 담당하며, 학습 여부는 별도 AI worker의 continuous model
+evaluation이 결정합니다. HTTP 예측 요청과 큐 worker에서 학습을 실행하지 않습니다.
+
+`asbazq/yugioh-deck-ai`의 `continuous.run`은 정답 덱 스크린샷 100장 이상으로 운영
+모델을 6시간마다 평가하고 기본 F1 0.95 미만이면 후보를 재학습합니다. 학습 간
+24시간 cooldown과 중복 실행 잠금을 적용합니다. 수집한 `<id>.jpg`와 `id,type` CSV를
+AI worker에 제공하되, 평가 스크린샷은 학습 데이터와 분리합니다.
+
+설정은 AI 저장소의 `docs/continuous-evaluation.md`를 따릅니다. 검증을 통과한
+후보의 `MODEL_PATH`를 AI 서비스에 반영하고 재시작하면 기존 Spring 예측 API 계약을
+유지할 수 있습니다. teacher를 교체할 때는 student 재학습과 카드 벡터 재생성 및
+임베딩 버전 동기화가 함께 필요합니다.
+
 ---
 
 **유희왕 덱 구성 및 공유 플랫폼**
