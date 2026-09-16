@@ -60,6 +60,9 @@ public class CardModel {
     @Column(length = 16)
     private KoreanReleaseStatus koreanReleaseStatus = KoreanReleaseStatus.UNKNOWN;
 
+    private Integer translationMisses = 0;
+    private LocalDateTime nextTranslationCheckAt;
+
     @Transient
     public TranslationStatus getTranslationStatus() {
         boolean namePresent = korName != null && !korName.isBlank();

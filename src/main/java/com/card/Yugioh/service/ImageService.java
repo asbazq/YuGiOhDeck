@@ -36,64 +36,15 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 @Service
 public class ImageService {
-    /*
-     * ========================================================================
-     * 이 클래스의 병렬 다운로드 구조를 처음 보는 사람을 위한 전체 설명
-     * ========================================================================
-     *
-     * 1. 스레드란?
-     *    하나의 프로그램 안에서 코드를 실행하는 작업 흐름이다. 관리자 API 또는 스케줄러가
-     *    fetchAndSaveCardImages를 호출하면 최초에는 그 호출을 담당하는 스레드 하나만 존재한다.
-     *    이 주석에서는 그 스레드를 '호출 스레드'라고 부른다.
-     *
-     * 2. 기존 순차 방식은 어떻게 동작했는가?
-     *
-     *    호출 스레드: [큰 이미지 A 완료 대기] -> [작은 이미지 A 완료 대기]
-     *              -> [큰 이미지 B 완료 대기] -> [작은 이미지 B 완료 대기]
-     *
-     *    HTTP 다운로드는 서버가 응답할 때까지 현재 스레드가 기다리는 블로킹 I/O다.
-     *    이미지 하나를 기다리는 동안 다음 이미지를 시작하지 못하므로 네트워크 대기 시간이
-     *    모두 합산된다.
-     *
-     * 3. 현재 병렬 방식은 어떻게 동작하는가?
-     *
-     *    호출 스레드: API/DB 처리 -> 다운로드 작업 목록 생성 -> invokeAll에서 완료 대기
-     *                                           |
-     *                                           +-> 워커 1: 이미지 A 다운로드
-     *                                           +-> 워커 2: 이미지 B 다운로드
-     *                                           +-> 워커 3: 이미지 C 다운로드
-     *                                           +-> 워커 4: 이미지 D 다운로드
-     *
-     *    워커(worker)는 호출 스레드 대신 실제 다운로드를 수행하는 보조 스레드다.
-     *    네 워커가 네트워크 대기 시간을 서로 겹치게 만들어 전체 실행 시간을 단축한다.
-     *
-     * 4. 작업이 이미지 100개인데 워커가 4개뿐이면?
-     *    ExecutorService 내부 작업 큐에 100개의 Callable이 들어간다. 처음 네 개만 실행되고,
-     *    워커 하나가 작업을 끝낼 때마다 큐에서 다음 작업 하나를 가져간다. 따라서 이미지가
-     *    많아져도 스레드가 100개 생성되지 않는다.
-     *
-     * 5. 이것은 완전한 비동기 API인가?
-     *    아니다. 다운로드 작업은 별도 워커에서 병렬 실행되지만 invokeAll이 모든 다운로드의
-     *    완료를 기다린다. 따라서 fetchAndSaveCardImages를 호출한 관리자 API도 최종 완료까지
-     *    기다린다. 정확한 표현은 '동기 메서드 내부의 멀티스레드 병렬 처리'다.
-     *
-     * 6. 왜 DB 작업까지 워커에서 실행하지 않는가?
-     *    JPA EntityManager와 영속성 컨텍스트는 스레드 안전하지 않다. 같은 엔티티를 여러
-     *    스레드에서 조회/변경/저장하면 상태 충돌이나 예측하기 어려운 예외가 발생할 수 있다.
-     *    그래서 DB 처리는 호출 스레드가 담당하고 워커에는 URL과 파일 경로만 전달한다.
-     *
-     * 7. 빠르게만 요청하면 대상 서버에 부담이 되지 않는가?
-     *    네 워커를 사용하되 모든 워커가 공유하는 속도 제한기를 통과하게 한다. 요청 시작
-     *    시점은 최소 250ms 간격이고, 429 응답을 받으면 서버의 Retry-After를 존중한다.
-     */
-    // 동시에 실행할 다운로드 수. 무제한 스레드 생성을 막고 대상 서버 부하를 제한한다.
-    private static final int DOWNLOAD_CONCURRENCY = 4;
+    // Local-server default: at most two concurrent downloads, with the shared rate limit below.
+    @Value("${card.image.download-concurrency:2}")
+    private int downloadConcurrency = 2;
     // 연결 수립과 응답 본문 읽기가 무한정 멈추지 않도록 각각 제한 시간을 둔다.
     private static final int CONNECT_TIMEOUT_MS = 10_000;
     private static final int READ_TIMEOUT_MS = 30_000;
     // 일시적인 네트워크 오류나 5xx/429 응답에 대응하기 위한 파일별 최대 시도 횟수다.
     private static final int MAX_DOWNLOAD_ATTEMPTS = 3;
-    // 네 워커가 있더라도 HTTP 요청 시작 시점은 전체 기준 최소 250ms 간격으로 직렬화한다.
+    // 다운로드 워커가 있더라도 HTTP 요청 시작 시점은 전체 기준 최소 250ms 간격으로 직렬화한다.
     // 즉, 이 애플리케이션 인스턴스가 새 요청을 시작하는 속도는 최대 약 4회/초다.
     private static final long REQUEST_INTERVAL_MS = 250L;
     // 서버의 Retry-After 값이 지나치게 커 작업이 장시간 정지하는 것을 막는 상한이다.
@@ -104,6 +55,7 @@ public class ImageService {
     // 모든 다운로드 워커가 공유하는 다음 요청 허용 시각. synchronized 메서드 안에서만 갱신한다.
     private long nextRequestAtMillis;
     private final CardPersistenceService cardPersistence;
+    private final CardCatalogService catalog;
 
     @Value("${card.image.save-path}")
     private String savePathString;
@@ -119,62 +71,103 @@ public class ImageService {
         this.saveSmallPath = Paths.get(saveSmallPathString);
     }
 
-    /**
-     * 카드 API를 읽고 카드/이미지 메타데이터와 실제 이미지 파일을 저장한다.
-     *
-     * 실행 스레드:
-     * - API JSON 요청과 DB 저장: 이 메서드를 호출한 스레드
-     * - 이미지 파일 다운로드: downloadImages가 만든 네 개의 워커 스레드
-     *
-     * 반환 시점:
-     * - 모든 이미지 다운로드가 성공 또는 최종 실패로 끝난 뒤 반환한다.
-     * - 따라서 반환 타입이 Future가 아니며 호출자 관점에서는 동기 메서드다.
-     *
-     * @param apiUrl 카드 목록을 반환하는 YGOPRODeck API 주소
-     * @return 메타데이터 저장에 성공한 카드 개수. 이미지 다운로드 성공 개수와는 다르다.
-     * @throws IOException API 목록 요청이나 저장 디렉터리 처리 자체가 실패한 경우
-     */
+    /** Manual fetch bypasses version caching; use this to repair missing local data. */
     public int fetchAndSaveCardImages(String apiUrl) throws IOException {
-        // false -> true 변경에 성공한 호출 하나만 작업을 시작할 수 있다.
-        if (!fetchInProgress.compareAndSet(false, true)) {
-            throw new ImageFetchAlreadyRunningException();
-        }
+        if (!fetchInProgress.compareAndSet(false, true)) throw new ImageFetchAlreadyRunningException();
         try {
-            // 1. 카드 API JSON은 한 번만 동기로 요청한다.
-            String response = Request.get(apiUrl)
-                                     .execute()
-                                     .returnContent()
-                                     .asString();
-
-            JSONObject jsonResponse = new JSONObject(response);
-            JSONArray cardData = jsonResponse.getJSONArray("data");
-
-            Files.createDirectories(savePath);
-            Files.createDirectories(saveSmallPath);
-            List<ImageDownloadTask> downloads = new ArrayList<>();
-            int processed = 0;
-            for (int i = 0; i < cardData.length(); i++) {
-                try {
-                    List<CardImage> images = cardPersistence.ingest(cardData.getJSONObject(i).toString());
-                    processed++;
-                    for (CardImage image : images) {
-                        queueMissingImage(downloads, image.getImageUrl(), savePath.resolve(image.getId() + ".jpg"));
-                        queueMissingImage(downloads, image.getImageUrlSmall(), saveSmallPath.resolve(image.getId() + ".jpg"));
-                    }
-                } catch (Exception e) {
-                    log.error("Card ingestion failed at index {}. Other cards will continue.", i, e);
-                }
-            }
-            downloadImages(downloads);
-            log.info("Card ingestion complete. saved={}, failed={}", processed, cardData.length() - processed);
-            if (!cardData.isEmpty() && processed == 0) {
-                throw new IOException("No cards could be ingested; check per-card errors");
-            }
-            return processed;
+            IngestionResult result = ingestResponse(fetchJson(apiUrl));
+            catalog.export(true);
+            return result.processed();
         } finally {
             fetchInProgress.set(false);
         }
     }
+
+    /** Weekly check: unchanged versions perform no card DB reads or image downloads. */
+    public int fetchChangedCardImages(String apiUrl) throws IOException {
+        if (!fetchInProgress.compareAndSet(false, true)) throw new ImageFetchAlreadyRunningException();
+        try {
+            Files.createDirectories(savePath);
+            Path stateFile = savePath.resolve(".ingestion-state.json");
+            JSONObject state = Files.exists(stateFile)
+                ? new JSONObject(Files.readString(stateFile)) : new JSONObject();
+            JSONArray versions = new JSONArray(fetchJson("https://db.ygoprodeck.com/api/v7/checkDBVer.php"));
+            String version = versions.getJSONObject(0).get("database_version").toString();
+            boolean sameVersion = version.equals(state.optString("version"))
+                && apiUrl.equals(state.optString("url"));
+            // A changed version can precede the upstream card JSON cache refresh (up to 48h).
+            // Confirm once after that window, rather than permanently accepting a stale snapshot.
+            long now = System.currentTimeMillis();
+            boolean needsConfirmation = !state.optBoolean("confirmed")
+                && now - state.optLong("observedAt", 0) >= TimeUnit.DAYS.toMillis(2);
+            if (sameVersion && state.optBoolean("complete") && !needsConfirmation) {
+                log.info("Card DB version unchanged: {}. Skipping ingestion.", version);
+                catalog.export(false);
+                return 0;
+            }
+            String response;
+            if (sameVersion && !needsConfirmation && state.has("response")) {
+                response = state.getString("response"); // retry incomplete work without another card API call
+            } else {
+                response = fetchJson(apiUrl);
+            }
+            JSONObject next = new JSONObject().put("version", version).put("url", apiUrl)
+                .put("observedAt", sameVersion ? state.optLong("observedAt", now) : now)
+                .put("confirmed", sameVersion && needsConfirmation)
+                .put("response", response).put("complete", false);
+            writeState(stateFile, next); // crash/failure never records a successful sync
+            IngestionResult result = ingestResponse(response);
+            catalog.export(true);
+            next.put("complete", result.failed() == 0);
+            writeState(stateFile, next);
+            return result.processed();
+        } finally {
+            fetchInProgress.set(false);
+        }
+    }
+
+    private String fetchJson(String url) throws IOException {
+        Request request = Request.get(url);
+        request.connectTimeout(org.apache.hc.core5.util.Timeout.ofSeconds(10));
+        request.responseTimeout(org.apache.hc.core5.util.Timeout.ofSeconds(30));
+        return request.execute().returnContent().asString();
+    }
+
+    private void writeState(Path path, JSONObject state) throws IOException {
+        Path temporary = path.resolveSibling(path.getFileName() + ".tmp");
+        Files.writeString(temporary, state.toString());
+        try {
+            Files.move(temporary, path, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
+        } catch (AtomicMoveNotSupportedException e) {
+            Files.move(temporary, path, StandardCopyOption.REPLACE_EXISTING);
+        }
+    }
+
+    private IngestionResult ingestResponse(String response) throws IOException {
+        JSONArray cardData = new JSONObject(response).getJSONArray("data");
+        Files.createDirectories(savePath);
+        Files.createDirectories(saveSmallPath);
+        List<ImageDownloadTask> downloads = new ArrayList<>();
+        int processed = 0;
+        for (int i = 0; i < cardData.length(); i++) {
+            try {
+                List<CardImage> images = cardPersistence.ingest(cardData.getJSONObject(i).toString());
+                processed++;
+                for (CardImage image : images) {
+                    queueMissingImage(downloads, image.getImageUrl(), savePath.resolve(image.getId() + ".jpg"));
+                    queueMissingImage(downloads, image.getImageUrlSmall(), saveSmallPath.resolve(image.getId() + ".jpg"));
+                }
+            } catch (Exception e) {
+                log.error("Card ingestion failed at index {}. Other cards will continue.", i, e);
+            }
+        }
+        int failedImages = downloadImages(downloads);
+        log.info("Card ingestion complete. saved={}, failed={}, failedImages={}", processed, cardData.length() - processed, failedImages);
+        if (!cardData.isEmpty() && processed == 0) throw new IOException("No cards could be ingested; check per-card errors");
+        return new IngestionResult(processed, cardData.length() - processed + failedImages);
+    }
+
+    private record IngestionResult(int processed, int failed) {}
 
     private void queueMissingImage(List<ImageDownloadTask> downloads, String url, Path output) {
         if (url != null && !url.isBlank() && Files.notExists(output)) {
@@ -182,29 +175,13 @@ public class ImageService {
         }
     }
 
-    /**
-     * 수집된 작업들을 고정 크기 스레드 풀에서 병렬 실행한다.
-     *
-     * 주요 타입:
-     * - ExecutorService: 워커 스레드와 작업 대기 큐를 관리하는 실행 관리자
-     * - Callable<Path>: 실행할 다운로드 한 건. 성공하면 Path를 반환하고 실패하면 예외 발생
-     * - Future<Path>: 아직 끝나지 않았을 수도 있는 Callable의 미래 결과를 나타내는 손잡이
-     *
-     * invokeAll 동작 예시(tasks가 10개, 워커가 4개인 경우):
-     * - 1차: 작업 1~4 실행, 작업 5~10은 큐에서 대기
-     * - 워커 2가 작업 2 완료: 같은 워커가 작업 5 실행
-     * - 이런 방식으로 큐가 빌 때까지 반복
-     * - 작업 10까지 모두 끝나야 invokeAll이 반환
-     *
-     * @param tasks URL과 출력 경로만 가진 불변 다운로드 작업 목록
-     */
-    private void downloadImages(List<ImageDownloadTask> tasks) {
+    private int downloadImages(List<ImageDownloadTask> tasks) {
         if (tasks.isEmpty()) {
-            return;
+            return 0;
         }
 
-        // 작업 수와 관계없이 워커를 네 개로 고정한다. 남은 작업은 Executor 내부 큐에서 대기한다.
-        ExecutorService executor = Executors.newFixedThreadPool(DOWNLOAD_CONCURRENCY);
+        // Clamp to a small worker pool on local servers.
+        ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, Math.min(downloadConcurrency, 2)));
         try {
             // Callable은 성공 시 저장 경로를 반환하고, 실패 시 예외를 Future에 보관한다.
             /*
@@ -237,9 +214,11 @@ public class ImageService {
                 }
             }
             log.info("Image downloads complete. success={}, failed={}", successCount, tasks.size() - successCount);
+            return tasks.size() - successCount;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("Image downloads interrupted. Remaining downloads were cancelled.");
+            return tasks.size();
         } finally {
             // 요청마다 만든 스레드 풀이 애플리케이션에 남지 않도록 반드시 종료한다.
             executor.shutdownNow();
@@ -334,13 +313,13 @@ public class ImageService {
     }
 
     /*
-     * synchronized를 사용해 네 워커가 nextRequestAtMillis를 동시에 읽고 갱신하지 못하게 한다.
+     * synchronized를 사용해 다운로드 워커가 nextRequestAtMillis를 동시에 읽고 갱신하지 못하게 한다.
      * 이 메서드는 동시 다운로드 수를 제한하는 것이 아니라 '새 요청의 시작 간격'을 제한한다.
      * 다운로드가 느리면 최대 네 연결이 동시에 진행될 수 있지만 요청 시작이 한 시점에 몰리지는 않는다.
      */
     private synchronized void awaitRequestPermit() throws IOException {
         /*
-         * 예를 들어 네 워커가 동시에 이 메서드를 호출해도 synchronized 때문에 한 번에
+         * 예를 들어 다운로드 워커가 동시에 이 메서드를 호출해도 synchronized 때문에 한 번에
          * 하나만 안으로 들어온다. 첫 워커가 요청 시간을 예약하고 나가면 두 번째 워커는
          * 최소 250ms 뒤, 세 번째는 그로부터 다시 250ms 뒤에 요청을 시작한다.
          *

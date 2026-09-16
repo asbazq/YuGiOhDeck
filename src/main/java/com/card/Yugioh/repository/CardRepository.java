@@ -84,4 +84,9 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     @Query("SELECT c FROM CardModel c WHERE c.korName IS NULL OR TRIM(c.korName) = '' "
          + "OR c.korDesc IS NULL OR TRIM(c.korDesc) = ''")
     Page<CardModel> findTranslationPending(Pageable pageable);
+    @Query("SELECT c FROM CardModel c WHERE (c.korName IS NULL OR TRIM(c.korName) = '' "
+         + "OR c.korDesc IS NULL OR TRIM(c.korDesc) = '') "
+         + "AND (c.nextTranslationCheckAt IS NULL OR c.nextTranslationCheckAt <= :now) "
+         + "ORDER BY c.nextTranslationCheckAt, c.id")
+    List<CardModel> findTranslationDue(@Param("now") LocalDateTime now, Pageable pageable);
 }

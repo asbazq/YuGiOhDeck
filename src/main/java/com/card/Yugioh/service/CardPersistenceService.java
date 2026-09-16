@@ -10,7 +10,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import org.json.JSONArray;
 import org.json.JSONObject;
-import org.springframework.beans.BeanUtils;
+import java.util.Objects;
+import java.time.LocalDateTime;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,11 +39,18 @@ public class CardPersistenceService {
             created.setId(incoming.getId());
             return created;
         });
-        // English API updates must not reset locally collected Korean data/release decisions.
-        BeanUtils.copyProperties(incoming, card, "id", "createdAt", "korName", "korDesc",
-            "hasKorName", "hasKorDesc", "koreanReleaseStatus", "cardImages",
-            "nameNormalized", "korNameNormalized");
-        cards.saveAndFlush(card);
+        // Set only changed source fields. Hibernate dirty checking skips unchanged rows.
+        boolean sourceChanged = !sameSource(card, incoming);
+        if (sourceChanged) {
+            card.setName(incoming.getName()); card.setType(incoming.getType());
+            card.setFrameType(incoming.getFrameType()); card.setDesc(incoming.getDesc());
+            card.setAtk(incoming.getAtk()); card.setDef(incoming.getDef()); card.setLevel(incoming.getLevel());
+            card.setRace(incoming.getRace()); card.setAttribute(incoming.getAttribute());
+            card.setArchetype(incoming.getArchetype());
+            card.setTranslationMisses(0);
+            card.setNextTranslationCheckAt(null);
+            card = cards.saveAndFlush(card);
+        }
         JSONArray sourceImages = new JSONObject(json).optJSONArray("card_images");
         List<CardImage> saved = new ArrayList<>();
         if (sourceImages != null) {
@@ -54,9 +62,13 @@ public class CardPersistenceService {
                 if (existing != null && !existing.getCardModel().getId().equals(card.getId())) {
                     throw new IOException("Image id belongs to another card: " + id);
                 }
-                saved.add(images.save(new CardImage(id, image.optString("image_url", null),
-                    image.optString("image_url_small", null),
-                    image.optString("image_url_cropped", null), card)));
+                String large = image.optString("image_url", null);
+                String small = image.optString("image_url_small", null);
+                String cropped = image.optString("image_url_cropped", null);
+                if (existing != null && Objects.equals(existing.getImageUrl(), large)
+                    && Objects.equals(existing.getImageUrlSmall(), small)
+                    && Objects.equals(existing.getImageUrlCropped(), cropped)) saved.add(existing);
+                else saved.add(images.save(new CardImage(id, large, small, cropped, card)));
             }
         }
         images.flush();
@@ -66,9 +78,19 @@ public class CardPersistenceService {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public TranslationStatus saveTranslation(Long id, String name, String description) {
         CardModel card = cards.findByIdForUpdate(id).orElseThrow();
+        TranslationStatus previous = card.getTranslationStatus();
         if (!hasText(card.getKorName()) && hasText(name)) card.setKorName(name.trim());
         if (!hasText(card.getKorDesc()) && hasText(description)) card.setKorDesc(description.trim());
         card.syncTranslationFlags();
+        if (card.getTranslationStatus() == TranslationStatus.READY) {
+            card.setTranslationMisses(0);
+            card.setNextTranslationCheckAt(null);
+        } else {
+            int misses = card.getTranslationStatus() != previous ? 0
+                : Math.min(3, Objects.requireNonNullElse(card.getTranslationMisses(), 0));
+            card.setNextTranslationCheckAt(LocalDateTime.now().plusWeeks(1L << misses));
+            card.setTranslationMisses(Math.min(3, misses + 1));
+        }
         cards.saveAndFlush(card);
         return card.getTranslationStatus();
     }
@@ -78,6 +100,14 @@ public class CardPersistenceService {
         CardModel card = cards.findByIdForUpdate(id).orElseThrow();
         card.setKoreanReleaseStatus(status);
         cards.saveAndFlush(card);
+    }
+
+    private static boolean sameSource(CardModel a, CardModel b) {
+        return Objects.equals(a.getName(), b.getName()) && Objects.equals(a.getType(), b.getType())
+            && Objects.equals(a.getFrameType(), b.getFrameType()) && Objects.equals(a.getDesc(), b.getDesc())
+            && a.getAtk() == b.getAtk() && a.getDef() == b.getDef() && a.getLevel() == b.getLevel()
+            && Objects.equals(a.getRace(), b.getRace()) && Objects.equals(a.getAttribute(), b.getAttribute())
+            && Objects.equals(a.getArchetype(), b.getArchetype());
     }
 
     private static boolean hasText(String value) {

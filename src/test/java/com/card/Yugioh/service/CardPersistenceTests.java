@@ -11,15 +11,42 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import static org.assertj.core.api.Assertions.*;
 
-@DataJpaTest(properties = "spring.jpa.hibernate.ddl-auto=create-drop")
+@DataJpaTest(properties = {"spring.jpa.hibernate.ddl-auto=create-drop", "spring.jpa.properties.hibernate.generate_statistics=true"})
 @Import(CardPersistenceService.class)
 @Transactional(propagation = Propagation.NOT_SUPPORTED)
 class CardPersistenceTests {
     @Autowired CardPersistenceService persistence;
+    @Autowired jakarta.persistence.EntityManagerFactory entityManagerFactory;
     @Autowired CardRepository cards;
     @Autowired CardImgRepository images;
 
     @BeforeEach void clear() { images.deleteAll(); cards.deleteAll(); }
+
+    @Test void unchangedCardAndImageDoNotWriteDatabaseRows() throws Exception {
+        String source = "{\"id\":1,\"name\":\"First\",\"card_images\":[{\"id\":10,\"image_url\":\"https://example.test/a.jpg\"}]}";
+        persistence.ingest(source);
+        var stats = entityManagerFactory.unwrap(org.hibernate.SessionFactory.class).getStatistics();
+        stats.clear();
+        persistence.ingest(source);
+        assertThat(stats.getEntityUpdateCount()).isZero();
+        assertThat(stats.getEntityInsertCount()).isZero();
+    }
+
+    @Test void repeatedMissesBackOffAndChangedSourceResetsTheDelay() throws Exception {
+        persistence.ingest("{\"id\":1,\"name\":\"First\"}");
+        for (int weeks : new int[] {1, 2, 4, 8, 8}) {
+            var before = java.time.LocalDateTime.now();
+            persistence.saveTranslation(1L, null, null);
+            var next = cards.findById(1L).orElseThrow().getNextTranslationCheckAt();
+            assertThat(next).isAfterOrEqualTo(before.plusWeeks(weeks)).isBefore(before.plusWeeks(weeks).plusMinutes(1));
+        }
+        assertThat(cards.findTranslationDue(java.time.LocalDateTime.now(), org.springframework.data.domain.PageRequest.of(0, 100))).isEmpty();
+        persistence.ingest("{\"id\":1,\"name\":\"First\"}");
+        assertThat(cards.findById(1L).orElseThrow().getNextTranslationCheckAt()).isNotNull();
+        persistence.ingest("{\"id\":1,\"name\":\"Final name\"}");
+        assertThat(cards.findById(1L).orElseThrow().getNextTranslationCheckAt()).isNull();
+        assertThat(cards.findTranslationDue(java.time.LocalDateTime.now(), org.springframework.data.domain.PageRequest.of(0, 100))).hasSize(1);
+    }
 
     @Test void untranslatedCardsAreStoredAndBecomeVisibleWhenTranslationArrives() throws Exception {
         persistence.ingest("{\"id\":1,\"name\":\"New card\"}");

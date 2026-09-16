@@ -31,7 +31,7 @@ class CardServiceCrawlTests {
         CardService crawler = spy(new CardService(cards, persistence, null, null, null, null));
         var first = new com.card.Yugioh.model.CardModel(); first.setId(1L); first.setName("First");
         var second = new com.card.Yugioh.model.CardModel(); second.setId(2L); second.setName("Second");
-        when(cards.findTranslationPending()).thenReturn(java.util.List.of(first, second));
+        when(cards.findTranslationDue(any(), any())).thenReturn(java.util.List.of(first, second));
         doAnswer(invocation -> {
             CardService.CrawlTarget target = invocation.getArgument(0);
             return new CardService.CrawlResult(target.cardId(), "이름", "설명");

@@ -75,7 +75,7 @@ public class QueueAdminController {
   public ResponseEntity<?> fetchApiData(
       @RequestParam(required = false, defaultValue = "false") boolean all,
       @RequestParam(defaultValue = "500") int num,
-      @RequestParam(defaultValue = "0") int offset,
+      @RequestParam(defaultValue = "20") int offset,
       @RequestParam(defaultValue = "new") String sort
   ) throws IOException {
     try {

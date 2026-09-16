@@ -7,7 +7,7 @@
 evaluation이 결정합니다. HTTP 예측 요청과 큐 worker에서 학습을 실행하지 않습니다.
 
 `asbazq/yugioh-deck-ai`의 `continuous.run`은 정답 덱 스크린샷 100장 이상으로 운영
-모델을 6시간마다 평가하고 기본 F1 0.95 미만이면 후보를 재학습합니다. 학습 간
+모델·평가셋·검색 벡터 변경 시 평가하고 기본 F1 0.95 미만이면 후보를 재학습합니다. 학습 간
 24시간 cooldown과 중복 실행 잠금을 적용합니다. 수집한 `<id>.jpg`와 `id,type` CSV를
 AI worker에 제공하되, 평가 스크린샷은 학습 데이터와 분리합니다.
 
@@ -371,13 +371,13 @@ public void runCrawl() {
 ### 📌 해결
 
 * 이미지 다운로드 작업을 `ExecutorService`의 고정 크기 스레드 풀에 분리해 여러 네트워크 I/O를 동시에 처리했다.
-* 스레드 수를 4개로 제한해 작업 개수만큼 스레드가 무제한으로 생성되지 않도록 했다.
+* 이미지 다운로드 스레드 수를 최대 2개로 제한해 작업 개수만큼 스레드가 무제한으로 생성되지 않도록 했다.
 * 모든 워커가 공유하는 요청 속도 제한기에 `Thread.sleep()`을 적용해, 새 HTTP 요청의 시작 간격을 최소 250ms로 유지했다.
 * `429` 응답이나 일시적인 실패가 발생하면 지수 백오프로 재시도 간격을 늘려 대상 서버와 자체 서버의 부하를 조절했다.
 * 크롤링 중 애플리케이션 컨테이너가 호스트 CPU를 과도하게 점유하지 않도록 Docker CPU 사용량을 0.75코어로 제한했다.
 
 ```java
-ExecutorService executor = Executors.newFixedThreadPool(4);
+ExecutorService executor = Executors.newFixedThreadPool(2);
 List<Future<Path>> futures = executor.invokeAll(jobs);
 
 long waitMs = nextRequestAtMillis - System.currentTimeMillis();
@@ -858,13 +858,13 @@ npm run build
 
 ## 미번역·미출시 카드 수집
 
-최신 카드부터(`offset=0`) 영문 정보를 저장합니다. 수집은 기본 매주 월요일 03:00
+불안정한 유출본을 피하기 위해 최신 20개를 제외하고(`offset=20`) 영문 정보를 저장합니다. 수집은 기본 매주 월요일 03:00
 (Asia/Seoul)이며 `card.ingestion.cron`으로 변경할 수 있습니다. 한국어 수집은 기존
-수요일 스케줄에서 번역이 불완전한 모든 카드를 다시 확인하므로 최신 200개 범위를
+수요일 스케줄에서 재확인 시점이 된 번역 대기 카드를 최대 100개 확인하므로 최신 200개 범위를
 벗어나도 번역 대기 카드가 잊히지 않습니다.
 
 - `PENDING`: 한국어 이름·설명 모두 없음. 정상적인 대기 상태입니다.
-- `PARTIAL`: 이름·설명 중 일부만 있음. 다음 한국어 수집 때 빠진 필드를 재확인합니다.
+- `PARTIAL`: 이름·설명 중 일부만 있음. 다음 재확인 시점에 빠진 필드를 확인합니다.
 - `READY`: 이름·설명이 모두 있음.
 
 번역 상태는 실제 저장된 문자열에서 계산합니다. 한국어 이름이 없거나 공백이면
@@ -886,9 +886,34 @@ npm run build
 
 - `GET /api/admin/queue/cards/translation-pending?page=0&size=20`: 번역 대기/부분 완료 목록.
 - `PATCH /api/admin/queue/cards/{id}/korean-release?status=UNRELEASED`: 출시 근거에 따른 상태 지정.
-- `POST /api/admin/queue/fetchKorData`: 번역 대기 카드 즉시 재확인.
+- `POST /api/admin/queue/fetchKorData`: 재확인 시점이 된 번역 대기 카드 처리.
 
 **배포 전:** 자동 스키마 갱신을 사용하지 않는 DB는
 `sql/20260916-korean-card-availability.sql`을 먼저 1회 적용해야 합니다.
 이미지·영문 원본 수집과 모델 재학습은 독립적이며 미번역 카드 수집 자체는 학습
 트리거가 아닙니다.
+
+
+## 개인 로컬 서버용 리소스 정책
+
+- 수집은 월요일 03:00 주 1회 `checkDBVer.php`로 시작합니다. 버전·요청 URL이 같고
+  이전 작업이 완료되었다면 카드 API, 카드 DB 조회 및 이미지 다운로드를 생략합니다.
+  최초 확인한 버전은 upstream JSON의 최대 48시간 캐시를 고려해 이후 스케줄에서
+  한 번 더 확인합니다. 버전 API 오류 시 전체 다운로드로 우회하지 않습니다.
+- `<card.image.save-path>/.ingestion-state.json`에 받은 JSON과 성공 여부를 원자적으로
+  저장합니다. 부분 실패는 버전이 같아도 저장된 응답으로 재시도합니다. 이 상태 파일과
+  이미지·DB는 함께 보존해야 합니다. 복구 후 파일/DB만 달라졌다면 관리자 수동 수집
+  (`fetchApiData`)을 실행하거나 상태 파일을 제거해 다시 검사합니다.
+- 바뀌지 않은 카드와 이미지 메타데이터는 UPDATE하지 않습니다. 이미지는 없는 파일만
+  받습니다. `card.image.download-concurrency` 기본값은 2이며 1~2로 제한합니다.
+- 번역 작업은 `card.translation.concurrency=1`, `card.translation.batch-size=100`이
+  기본입니다. 번역이 없으면 1→2→4→8주(최대)로 간격을 늘립니다. 부분 번역의 진척이나
+  영문 원본 변경 시 지연을 줄이거나 초기화합니다. 대기 상태 조회는 계속 가능합니다.
+- 수집 후 작은 이미지 폴더에 `catalog.csv`를 생성합니다(`id,card_id,name,type`).
+  추가 쿼리 없이 이미지를 찾을 수 있도록 이미지 ID와 부모 카드 ID를 구분합니다.
+  이 폴더를 AI worker에 공유하고 `CATALOG_CSV`를 해당 파일로 지정합니다.
+- 추가 DB 변경은 `sql/20260916-local-resource-policy.sql`에 있습니다.
+  자동 스키마 갱신을 쓰지 않는 환경은 이전 출시 상태 migration 이후 적용합니다.
+
+AI worker는 목요일 03:00 주 1회 깨어나 새/수정된 이미지의 벡터만 생성합니다.
+변경이 없으면 TensorFlow를 로드하지 않고 평가·재학습도 생략합니다.

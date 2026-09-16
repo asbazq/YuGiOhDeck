@@ -22,7 +22,7 @@ public class ScheduledTasks {
 
     private final CardService cardService;
     private final ImageService imageService;
-    private final String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=200&offset=0&sort=new";
+    private final String apiUrl = "https://db.ygoprodeck.com/api/v7/cardinfo.php?num=200&offset=20&sort=new";
 
     // @PostConstruct
     public void onStartup() {
@@ -34,7 +34,7 @@ public class ScheduledTasks {
     @Scheduled(cron = "${card.ingestion.cron:0 0 3 * * MON}", zone = "Asia/Seoul")
     public void fetchApiData() {
         try {
-            imageService.fetchAndSaveCardImages(apiUrl);
+            imageService.fetchChangedCardImages(apiUrl);
         } catch (IOException e) {
             e.printStackTrace();
         }

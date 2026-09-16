@@ -70,7 +70,10 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class CardService {
 
-    private static final int CRAWL_CONCURRENCY = 4;
+    @Value("${card.translation.concurrency:1}")
+    private int crawlConcurrency = 1;
+    @Value("${card.translation.batch-size:100}")
+    private int translationBatchSize = 100;
     private static final int MAX_FETCH_ATTEMPTS = 3;
     private static final long SITE_REQUEST_INTERVAL_MS = 500L;
     private static final long MAX_RETRY_AFTER_MS = 60_000L;
@@ -175,9 +178,10 @@ public class CardService {
             return;
         }
 
-        ExecutorService executor = Executors.newFixedThreadPool(CRAWL_CONCURRENCY);
+        ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, Math.min(crawlConcurrency, 2)));
         try {
-            List<CardModel> targets = cardRepository.findTranslationPending();
+            List<CardModel> targets = cardRepository.findTranslationDue(java.time.LocalDateTime.now(),
+                org.springframework.data.domain.PageRequest.of(0, Math.max(1, Math.min(translationBatchSize, 500))));
             List<Callable<CrawlResult>> jobs = targets.stream()
                 .map(card -> new CrawlTarget(card.getId(), card.getName(), card.getFrameType(),
                     hasText(card.getKorName()), hasText(card.getKorDesc())))
