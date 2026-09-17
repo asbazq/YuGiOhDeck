@@ -68,11 +68,9 @@ public class QueueJobService {
 
     local promoted = {}
 
-    for i = 1, expiredCount do
-      if totalRunning() >= maxRunning() then
-        break
-      end
-
+    -- Refill all available slots, including capacity added by an administrator or
+    -- left vacant by a leave/enqueue race, even when no session expired this tick.
+    while totalRunning() < maxRunning() do
       local vipStreak = tonumber(redis.call('HGET', configKey, 'vip_streak')) or 0
       local primaryWait   = (targetRunKey == vipRunKey) and vipWaitKey  or mainWaitKey
       local secondaryWait = (targetRunKey == vipRunKey) and mainWaitKey or vipWaitKey

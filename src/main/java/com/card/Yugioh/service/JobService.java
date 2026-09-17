@@ -6,12 +6,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.context.annotation.Profile;
 
 import com.card.Yugioh.webSocket.QueueWebSocketHandler;
+import lombok.extern.slf4j.Slf4j;
 
 import java.time.Instant;
 import java.util.Set;
 
 @Service
 @Profile("!crawler")
+@Slf4j
 public class JobService {
 
     private static final String WAITING_KEY = "queue:waiting";
@@ -102,10 +104,8 @@ public class JobService {
 
         webSocketHandler.broadcastQueueStatus(waitingCount, runningCount, finishedCount);
 
-        System.out.println("\nQueue Status:");
-        System.out.println("Waiting Queue: " + waitingCount);
-        System.out.println("Running Queue: " + runningCount);
-        System.out.println("Finished Queue: " + finishedCount);
+        log.debug("Queue status: waiting={}, running={}, finished={}",
+            waitingCount, runningCount, finishedCount);
     }
 
     /**

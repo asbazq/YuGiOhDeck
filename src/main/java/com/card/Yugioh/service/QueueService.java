@@ -113,8 +113,12 @@ public class QueueService {
         }
 
         long now = Instant.now().toEpochMilli();
-        touchRunKey(runKey(group, "vip"), user, now);
-        touchRunKey(runKey(group, "main"), user, now);
+        redis.execute(
+            touchScript,
+            List.of(runKey(group, "vip"), runKey(group, "main")),
+            String.valueOf(now),
+            user
+        );
     }
 
     @EventListener
@@ -140,7 +144,9 @@ public class QueueService {
 
     public Map<String, Long> queuePosition(String group, String qid, String userId) {
         validateGroupAndQid(group, qid);
-        return Map.of("pos", absolutePosition(group, qid, userId));
+        // Promotion can borrow a slot from the other queue, so inspect both running sets.
+        long pos = isRunningInAnyQueue(group, userId) ? 0L : absolutePosition(group, qid, userId);
+        return Map.of("pos", pos);
     }
 
     public Map<String, Object> isRunning(String group, String qid, String userId) {
@@ -221,6 +227,16 @@ public class QueueService {
 
     private final RedisScript<String> promoteScript =
         new DefaultRedisScript<>(LUA_PROMOTE_WITH_CAP, String.class);
+
+    private static final String LUA_TOUCH = """
+    -- Update existing membership only: a concurrent leave/expiry must not be undone by a PING.
+    redis.call('ZADD', KEYS[1], 'XX', ARGV[1], ARGV[2])
+    redis.call('ZADD', KEYS[2], 'XX', ARGV[1], ARGV[2])
+    return 1
+    """;
+
+    private final RedisScript<Long> touchScript =
+        new DefaultRedisScript<>(LUA_TOUCH, Long.class);
 
     private static final String LUA_ENTER = """
     -- KEYS: 1 vipRunKey, 2 mainRunKey, 3 targetRunKey, 4 vipWaitKey, 5 mainWaitKey, 6 configKey, 7 seqKey
@@ -357,12 +373,6 @@ public class QueueService {
         return removed != null && removed > 0;
     }
 
-    private void touchRunKey(String key, String user, long now) {
-        if (redis.opsForZSet().score(key, user) != null) {
-            redis.opsForZSet().add(key, user, now);
-        }
-    }
-
     private boolean isRunningInAnyQueue(String group, String user) {
         return redis.opsForZSet().score(runKey(group, "vip"), user) != null
             || redis.opsForZSet().score(runKey(group, "main"), user) != null;
@@ -417,7 +427,7 @@ public class QueueService {
     }
 
     private static String cfgKey(String group) {
-        return "config:" + slot(group).replace(":{", "{");
+        return "config:{" + group + "}";
     }
 
     public record QueueStatus(long running, long waiting, long waitingVip, long waitingMain) {}

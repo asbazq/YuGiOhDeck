@@ -2,6 +2,7 @@ package com.card.Yugioh.repository;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -14,6 +15,9 @@ import java.util.Optional;
 
 
 public interface CardRepository extends JpaRepository<CardModel, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM CardModel c WHERE c.id = :id")
+    Optional<CardModel> findByIdForUpdate(@Param("id") Long id);
     // @Query("SELECT c FROM CardModel c WHERE LOWER(c.name) LIKE LOWER(CONCAT ('%', :query, '%'))")
     // List<CardModel> searchByNameContaining(@Param("query")String query);
 
@@ -26,8 +30,9 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     @Query(value = """
             SELECT *
             FROM deck.card_model
-            WHERE
-            (
+            WHERE NULLIF(TRIM(kor_name), '') IS NOT NULL
+            AND COALESCE(korean_release_status, 'UNKNOWN') <> 'UNRELEASED'
+            AND (
                 :frameType = ''
                 OR (:frameType = 'monster' AND frame_type IN ('normal', 'effect', 'ritual'))
                 OR (:frameType = 'pendulum' AND frame_type IN ('effect_pendulum', 'xyz_pendulum', 'synchro_pendulum', 'fusion_pendulum', 'normal_pendulum'))
@@ -60,10 +65,10 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
                 id ASC
             """,
             nativeQuery = true)
-    Page<CardModel> searchByFullText(@Param("query") String query,
-                                        @Param("frameType") String frameType,
-                                        @Param("raw") String raw,
-                                        Pageable pageable);
+    Slice<CardModel> searchByFullText(@Param("query") String query,
+                                      @Param("frameType") String frameType,
+                                      @Param("raw") String raw,
+                                      Pageable pageable);
     Optional<CardModel> findByName(String name);
     Optional<CardModel> findByKorName(String korName);
     
@@ -72,4 +77,16 @@ public interface CardRepository extends JpaRepository<CardModel, Long> {
     List<CardModel> findAllByKorNameIsNullOrKorDescIsNull();
     List<CardModel> findAllByHasKorNameFalseOrHasKorDescFalse();
     Page<CardModel> findByHasKorNameFalseOrHasKorDescFalse(Pageable pageable);
+    @Query("SELECT c FROM CardModel c WHERE c.korName IS NULL OR TRIM(c.korName) = '' "
+         + "OR c.korDesc IS NULL OR TRIM(c.korDesc) = '' ORDER BY c.id")
+    List<CardModel> findTranslationPending();
+
+    @Query("SELECT c FROM CardModel c WHERE c.korName IS NULL OR TRIM(c.korName) = '' "
+         + "OR c.korDesc IS NULL OR TRIM(c.korDesc) = ''")
+    Page<CardModel> findTranslationPending(Pageable pageable);
+    @Query("SELECT c FROM CardModel c WHERE (c.korName IS NULL OR TRIM(c.korName) = '' "
+         + "OR c.korDesc IS NULL OR TRIM(c.korDesc) = '') "
+         + "AND (c.nextTranslationCheckAt IS NULL OR c.nextTranslationCheckAt <= :now) "
+         + "ORDER BY c.nextTranslationCheckAt, c.id")
+    List<CardModel> findTranslationDue(@Param("now") LocalDateTime now, Pageable pageable);
 }

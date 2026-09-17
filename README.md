@@ -22,6 +22,10 @@
 14. [모니터링](#모니터링)
 15. [ERD](#erd)
 16. [디자인](#디자인)
+17. [이미지 학습 트리거](#이미지-학습-트리거)
+18. [테스트](#테스트)
+19. [미번역·미출시 카드 수집](#미번역미출시-카드-수집)
+20. [개인 로컬 서버용 리소스 정책](#개인-로컬-서버용-리소스-정책)
 
 ---
 
@@ -906,3 +910,101 @@ erDiagram
 ![image](https://github.com/user-attachments/assets/09f27c7d-4e06-4cd2-af9f-cc42893f4adc)
 
 ![image](https://github.com/user-attachments/assets/d4f7f146-a847-4bde-83d2-5ff053cbffad)
+
+---
+
+# 이미지 학습 트리거
+
+이미지 수집 완료를 학습 요청으로 직접 연결하지 않습니다. `ImageService`는 이미지와
+카드 메타데이터 수집을 담당하며, 학습 여부는 별도 AI worker의 continuous model
+evaluation이 결정합니다. HTTP 예측 요청과 큐 worker에서는 학습을 실행하지 않습니다.
+
+`asbazq/yugioh-deck-ai`의 `continuous.run`은 정답 덱 스크린샷 100장 이상으로 운영
+모델·평가셋·검색 벡터 변경 시 평가하고 기본 F1 0.95 미만이면 후보를 재학습합니다. 학습 간
+24시간 cooldown과 중복 실행 잠금을 적용합니다. 수집한 `<id>.jpg`와 `id,type` CSV를
+AI worker에 제공하되, 평가 스크린샷은 학습 데이터와 분리합니다.
+
+설정은 AI 저장소의 `docs/continuous-evaluation.md`를 따릅니다. 검증을 통과한
+후보의 `MODEL_PATH`를 AI 서비스에 반영하고 재시작하면 기존 Spring 예측 API 계약을
+유지할 수 있습니다. teacher를 교체할 때는 student 재학습과 카드 벡터 재생성 및
+임베딩 버전 동기화가 함께 필요합니다.
+
+---
+
+# 테스트
+
+JDK 17을 설치하고 `JAVA_HOME`을 해당 JDK로 설정합니다.
+
+```bash
+bash ./gradlew test bootJar
+cd front/my-app
+npm ci
+CI=true npm test -- --watchAll=false --runInBand
+npm run build
+```
+
+백엔드 컨텍스트 테스트는 H2와 테스트용 설정을 사용하며, 정기 대기열 작업은 mock으로
+대체합니다. 실제 MySQL·AI 서버 연결 검증은 별도로 필요합니다.
+
+대기열 Lua 통합 테스트는 `YUGIOH_TEST_REDIS_PORT`가 설정되었을 때 실행됩니다.
+테스트가 대기열 키를 초기화하므로 반드시 전용 임시 Redis를 사용합니다.
+
+```bash
+docker run --rm -d --name yugioh-redis-test -p 127.0.0.1:16379:6379 redis:7-alpine
+YUGIOH_TEST_REDIS_PORT=16379 bash ./gradlew test --rerun-tasks
+docker stop yugioh-redis-test
+```
+
+---
+
+# 미번역·미출시 카드 수집
+
+불안정한 유출본을 피하기 위해 최신 20개를 제외하고(`offset=20`) 영문 정보를 저장합니다.
+수집은 기본 매주 월요일 03:00(Asia/Seoul)이며 `card.ingestion.cron`으로 변경할 수 있습니다.
+한국어 수집은 기존 수요일 스케줄에서 재확인 시점이 된 번역 대기 카드를 최대 100개
+확인하므로 최신 200개 범위를 벗어나도 번역 대기 카드가 잊히지 않습니다.
+
+- `PENDING`: 한국어 이름·설명 모두 없음. 정상적인 대기 상태입니다.
+- `PARTIAL`: 이름·설명 중 일부만 있음. 다음 재확인 시점에 빠진 필드를 확인합니다.
+- `READY`: 이름·설명이 모두 있음.
+
+번역 상태는 실제 저장된 문자열에서 계산합니다. 한국어 이름이 없거나 공백이면
+검색·카드 상세·AI 후보에서 제외합니다. 한국어 이름만 있으면 표시할 수 있으며,
+설명은 기존 영문 fallback을 유지합니다. 기존 카드 정보 갱신은 한국어 번역과
+관리자의 출시 상태를 보존합니다. 카드·이미지 메타데이터와 번역 저장은 카드별
+독립 트랜잭션으로 수행해 하나의 잘못된 카드가 다른 카드의 저장을 취소하지 않습니다.
+
+출시 상태는 별도 `korean_release_status` 필드로 `UNKNOWN`, `UNRELEASED`, `RELEASED`를
+관리합니다. 번역이 있다고 한국 정식 출시로 판정하지 않습니다. `UNKNOWN`은 기존 동작과의
+호환을 위해 한국어 이름이 있으면 노출되며, 명시적 `UNRELEASED`는 번역이 있어도 숨깁니다.
+
+관리자 인증이 필요한 API:
+
+- `GET /api/admin/queue/cards/translation-pending?page=0&size=20`: 번역 대기·부분 완료 목록
+- `PATCH /api/admin/queue/cards/{id}/korean-release?status=UNRELEASED`: 출시 상태 지정
+- `POST /api/admin/queue/fetchKorData`: 재확인 시점이 된 번역 대기 카드 처리
+
+자동 스키마 갱신을 사용하지 않는 DB는 배포 전에
+`sql/20260916-korean-card-availability.sql`을 한 번 적용해야 합니다.
+
+---
+
+# 개인 로컬 서버용 리소스 정책
+
+- 수집은 월요일 03:00 주 1회 `checkDBVer.php`로 시작합니다. 버전·요청 URL이 같고
+  이전 작업이 완료되었다면 카드 API, 카드 DB 조회 및 이미지 다운로드를 생략합니다.
+  최초 확인한 버전은 upstream JSON의 최대 48시간 캐시를 고려해 이후 스케줄에서
+  한 번 더 확인합니다. 버전 API 오류 시 전체 다운로드로 우회하지 않습니다.
+- `<card.image.save-path>/.ingestion-state.json`에 받은 JSON과 성공 여부를 원자적으로
+  저장합니다. 부분 실패는 버전이 같아도 저장된 응답으로 재시도합니다.
+- 바뀌지 않은 카드와 이미지 메타데이터는 UPDATE하지 않습니다. 이미지는 없는 파일만
+  받습니다. `card.image.download-concurrency` 기본값은 2이며 1~2로 제한합니다.
+- 번역 작업은 `card.translation.concurrency=1`, `card.translation.batch-size=100`이
+  기본입니다. 번역이 없으면 1→2→4→8주로 간격을 늘립니다. 부분 번역의 진척이나
+  영문 원본 변경 시 지연을 줄이거나 초기화합니다.
+- 수집 후 작은 이미지 폴더에 `catalog.csv`를 생성합니다(`id,card_id,name,type`).
+  이 폴더를 AI worker에 공유하고 `CATALOG_CSV`를 해당 파일로 지정합니다.
+- 추가 DB 변경은 `sql/20260916-local-resource-policy.sql`에 있습니다.
+
+AI worker는 목요일 03:00 주 1회 깨어나 새 이미지와 수정된 이미지의 벡터만 생성합니다.
+변경이 없으면 TensorFlow를 로드하지 않고 평가와 재학습도 생략합니다.

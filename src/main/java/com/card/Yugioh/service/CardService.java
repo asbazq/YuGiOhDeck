@@ -16,6 +16,7 @@ import org.openqa.selenium.support.ui.WebDriverWait;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,6 +49,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Callable;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.net.URLEncoder;
@@ -62,8 +70,21 @@ import java.time.Duration;
 @RequiredArgsConstructor
 public class CardService {
 
+    @Value("${card.translation.concurrency:1}")
+    private int crawlConcurrency = 1;
+    @Value("${card.translation.batch-size:100}")
+    private int translationBatchSize = 100;
+    private static final int MAX_FETCH_ATTEMPTS = 3;
+    private static final long SITE_REQUEST_INTERVAL_MS = 500L;
+    private static final long MAX_RETRY_AFTER_MS = 60_000L;
+    private final AtomicBoolean crawlAllInProgress = new AtomicBoolean(false);
+    private final AtomicBoolean limitCrawlInProgress = new AtomicBoolean(false);
+    private final RequestRateLimiter fandomRateLimiter = new RequestRateLimiter(SITE_REQUEST_INTERVAL_MS);
+    private final RequestRateLimiter yugipediaRateLimiter = new RequestRateLimiter(SITE_REQUEST_INTERVAL_MS);
+
 
     private final CardRepository cardRepository;
+    private final CardPersistenceService cardPersistence;
     private final CardImgRepository cardImgRepository;
     private final LimitRegulationRepository limitRegulationRepository;
     private final LimitRegulationChangeRepository changeRepo;
@@ -103,17 +124,19 @@ public class CardService {
         options.setBinary(chromeBin);
         options.addArguments("--headless", // 브라우저 창을 표시하지 않음
                         "--no-sandbox", 
-                        "--disable-dev-shm-usage"
+                        "--disable-dev-shm-usage",
+                        "--disable-background-networking",
+                        "--blink-settings=imagesEnabled=false"
                         ); 
 
         return new ChromeDriver(options);
     }
 
 
-    public Page<CardMiniDto> search(String keyWord, String frameType, Pageable pageable) {
+    public Slice<CardMiniDto> search(String keyWord, String frameType, Pageable pageable) {
         String q = keyWord == null ? "" : keyWord.trim();
         String ftQuery = buildEnglishBooleanQueryIfEnglish(q);
-        Page<CardModel> cards = cardRepository.searchByFullText(
+        Slice<CardModel> cards = cardRepository.searchByFullText(
                 ftQuery,
                 frameType == null ? "" : frameType,
                 q,
@@ -149,38 +172,75 @@ public class CardService {
         });
     }
 
-    @Transactional
     public void crawlAll() {
-        List<CardModel> targets = cardRepository.findAllByHasKorNameFalseOrHasKorDescFalse();
-
-        for (CardModel card : targets) {
-
-            String encodedName = encodeCardName(card.getName());
-            String url1 = "https://yugioh.fandom.com/wiki/" + encodedName;
-            String url2 = "https://yugipedia.com/wiki/"   + encodedName;
-
-            Document doc = fetchDoc(url1);
-            Document spareDoc = (doc == null) ? fetchDoc(url2) : null;
-
-            // 이미 채워져 있지 않은 필드만 채움 (불필요한 재작업 방지)
-            if (!card.isHasKorName()) {
-                String kn = extractKorName(doc, spareDoc);
-                if (kn != null && !kn.isBlank()) {
-                    card.setKorName(kn);
-                    card.setHasKorName(true); // Generated Column이면 불필요
-                }
-            }
-            if (!card.isHasKorDesc()) {
-                boolean isPendulum = PENDULUM_FRAMES.contains(card.getFrameType());
-                String kd = extractKorDesc(doc, spareDoc, isPendulum);
-                if (kd != null && !kd.isBlank()) {
-                    card.setKorDesc(kd);
-                    card.setHasKorDesc(true); // Generated Column이면 불필요
-                }
-            }
+        if (!crawlAllInProgress.compareAndSet(false, true)) {
+            log.warn("Korean card crawl is already running. Duplicate request ignored.");
+            return;
         }
-        // 루프마다 save() X → 한 번에 flush
-        cardRepository.saveAll(targets);
+
+        ExecutorService executor = Executors.newFixedThreadPool(Math.max(1, Math.min(crawlConcurrency, 2)));
+        try {
+            List<CardModel> targets = cardRepository.findTranslationDue(java.time.LocalDateTime.now(),
+                org.springframework.data.domain.PageRequest.of(0, Math.max(1, Math.min(translationBatchSize, 500))));
+            List<Callable<CrawlResult>> jobs = targets.stream()
+                .map(card -> new CrawlTarget(card.getId(), card.getName(), card.getFrameType(),
+                    hasText(card.getKorName()), hasText(card.getKorDesc())))
+                .<Callable<CrawlResult>>map(target -> () -> crawlCard(target))
+                .toList();
+
+            List<Future<CrawlResult>> futures = executor.invokeAll(jobs);
+            int readyCount = 0;
+            int pendingCount = 0;
+            int failedCount = 0;
+            for (Future<CrawlResult> future : futures) {
+                try {
+                    CrawlResult result = future.get();
+                    var status = cardPersistence.saveTranslation(result.cardId(), result.korName(), result.korDesc());
+                    if (status == com.card.Yugioh.model.TranslationStatus.READY) readyCount++;
+                    else pendingCount++;
+                } catch (ExecutionException | RuntimeException e) {
+                    failedCount++;
+                    log.error("Card translation failed; other cards will continue", e);
+                }
+            }
+            log.info("Korean card crawl complete. ready={}, pending={}, failed={}", readyCount, pendingCount, failedCount);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            log.warn("Korean card crawl interrupted.");
+        } finally {
+            executor.shutdownNow();
+            try {
+                if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                    log.warn("Card crawl executor did not terminate within 5 seconds.");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            crawlAllInProgress.set(false);
+        }
+    }
+
+    CrawlResult crawlCard(CrawlTarget target) {
+        String encodedName = encodeCardName(target.name());
+        Document doc = fetchDocProtected("https://yugioh.fandom.com/wiki/" + encodedName, fandomRateLimiter);
+        boolean pendulum = target.frameType() != null && PENDULUM_FRAMES.contains(target.frameType());
+        String korName = target.hasKorName() ? null : extractKorName(doc, null);
+        String korDesc = target.hasKorDesc() ? null
+            : extractKorDesc(doc, null, pendulum);
+
+        // 페이지가 있어도 한글 필드가 없을 수 있으므로 필요한 필드가 빠졌을 때 보조 사이트를 조회한다.
+        boolean needsName = !target.hasKorName() && !hasText(korName);
+        boolean needsDesc = !target.hasKorDesc() && !hasText(korDesc);
+        if (needsName || needsDesc) {
+            Document spareDoc = fetchDocProtected("https://yugipedia.com/wiki/" + encodedName, yugipediaRateLimiter);
+            if (needsName) korName = extractKorName(null, spareDoc);
+            if (needsDesc) korDesc = extractKorDesc(null, spareDoc, pendulum);
+        }
+        return new CrawlResult(target.cardId(), korName, korDesc);
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 
     // ─────────────────────────────────────────────────────────────────────────
@@ -194,52 +254,78 @@ public class CardService {
     }
 
     // Jsoup 로 문서 가져오기 (실패 시 null 리턴)
-    private Document fetchDoc(String url) {
-        try {
-            Connection.Response resp = Jsoup.connect(url)
-                .userAgent("Mozilla/5.0 (compatible; CardCrawler/1.0)")
-                .timeout(10_000)
-                .ignoreHttpErrors(true)  // ← 중요: 404도 예외로 던지지 않음
-                .execute();
-
-            int sc = resp.statusCode();
-            if (sc == 200) {
-                return resp.parse();
-            }
-
-            // 404/410: 문서 없음 → 조용히 스킵(요약 로그만)
-            if (sc == 404 || sc == 410) {
-                log.info("문서 없음({}, {})", sc, url);
-                return null;
-            }
-
-            // 429/5xx: 일시 오류 → 한 번 재시도 (백오프)
-            if (sc == 429 || (sc >= 500 && sc < 600)) {
-                log.warn("일시 오류로 재시도({}): {}", sc, url);
-                Thread.sleep(500L);
-                Connection.Response retry = Jsoup.connect(url)
+    private Document fetchDocProtected(String url, RequestRateLimiter limiter) {
+        for (int attempt = 1; attempt <= MAX_FETCH_ATTEMPTS; attempt++) {
+            try {
+                limiter.awaitPermit();
+                Connection.Response response = Jsoup.connect(url)
                     .userAgent("Mozilla/5.0 (compatible; CardCrawler/1.0)")
                     .timeout(10_000)
                     .ignoreHttpErrors(true)
                     .execute();
-                if (retry.statusCode() == 200) {
-                    return retry.parse();
+                int status = response.statusCode();
+                if (status == 200) return response.parse();
+                if (status == 404 || status == 410) return null;
+                if (status != 429 && (status < 500 || status >= 600)) {
+                    log.info("Card page returned HTTP {}: {}", status, url);
+                    return null;
                 }
-                log.warn("재시도 실패({}, {}): {}", retry.statusCode(), sc, url);
+
+                long waitMs = status == 429
+                    ? parseRetryAfterMillis(response.header("Retry-After"))
+                    : 500L * (1L << (attempt - 1));
+                log.warn("Card page returned HTTP {}. Retrying in {} ms: {}", status, waitMs, url);
+                sleepForRetry(waitMs);
+            } catch (IOException e) {
+                if (attempt == MAX_FETCH_ATTEMPTS) {
+                    log.warn("Card page fetch failed after retries: {}", url);
+                    return null;
+                }
+                try {
+                    sleepForRetry(500L * (1L << (attempt - 1)));
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    return null;
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
                 return null;
             }
+        }
+        return null;
+    }
 
-            // 기타 코드: 정보 로그만 남기고 스킵
-            log.info("문서 가져오기 비정상 상태({}): {}", sc, url);
-            return null;
+    private long parseRetryAfterMillis(String retryAfter) {
+        if (retryAfter == null || retryAfter.isBlank()) return 1_000L;
+        try {
+            long seconds = Long.parseLong(retryAfter.trim());
+            return Math.min(Math.max(seconds * 1_000L, 1_000L), MAX_RETRY_AFTER_MS);
+        } catch (NumberFormatException e) {
+            return 1_000L;
+        }
+    }
 
-        } catch (IOException e) {
-            // 네트워크 예외만 간단 메시지
-            log.warn("문서 가져오기 실패(IO): {}", url);
-            return null;
-        } catch (InterruptedException ie) {
-            Thread.currentThread().interrupt();
-            return null;
+    private static void sleepForRetry(long waitMs) throws InterruptedException {
+        Thread.sleep(waitMs);
+    }
+
+    record CrawlTarget(Long cardId, String name, String frameType,
+                       boolean hasKorName, boolean hasKorDesc) {}
+
+    record CrawlResult(Long cardId, String korName, String korDesc) {}
+
+    private static final class RequestRateLimiter {
+        private final long intervalMs;
+        private long nextRequestAtMillis;
+
+        private RequestRateLimiter(long intervalMs) {
+            this.intervalMs = intervalMs;
+        }
+
+        private synchronized void awaitPermit() throws InterruptedException {
+            long waitMs = nextRequestAtMillis - System.currentTimeMillis();
+            if (waitMs > 0) Thread.sleep(waitMs);
+            nextRequestAtMillis = System.currentTimeMillis() + intervalMs;
         }
     }
 
@@ -416,6 +502,11 @@ public class CardService {
                 .orElseThrow(() -> new IllegalArgumentException("해당 카드가 존재하지 않습니다."));
         }
 
+        if (!cardModel.isVisibleInKoreanCatalog()) {
+            throw new org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND, "한국어 서비스에 아직 공개되지 않은 카드입니다.");
+        }
+
         String displayName = (cardModel.getKorName() != null && !cardModel.getKorName().isBlank())
                 ? cardModel.getKorName()
                 : Objects.toString(cardModel.getName(), ""); // Objects.toString(...) null-safe null 일 때 nullDefalut 반환
@@ -446,6 +537,18 @@ public class CardService {
     // 리미티드 레귤레이션 크롤링
     @Transactional
     public List<BanlistChangeNoticeDto> limitCrawl() {
+        if (!limitCrawlInProgress.compareAndSet(false, true)) {
+            log.warn("Banlist crawl is already running. Duplicate request ignored.");
+            return List.of();
+        }
+        try {
+            return limitCrawlOnce();
+        } finally {
+            limitCrawlInProgress.set(false);
+        }
+    }
+
+    private List<BanlistChangeNoticeDto> limitCrawlOnce() {
         WebDriver driver = setup();
         try {
              // 웹 페이지 열기

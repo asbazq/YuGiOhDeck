@@ -9,10 +9,7 @@ export default function QueueApp({ children, group = 'site', qid = 'main' }) {
   const userIdRef = useRef(getOrCreateUserId());
   const [entered, setEntered] = useState(false);
   const [pos, setPos] = useState(0);
-  const [running, setRunning] = useState(0);
-  const [waiting, setWaiting] = useState(0);
   const [show, setShow] = useState(false);
-  const waitingRef = useRef(0);
   const wsRef = useRef(null);
   const [message, setMessage] = useState('');
   const pingTimer = useRef(null);
@@ -55,8 +52,6 @@ export default function QueueApp({ children, group = 'site', qid = 'main' }) {
         setEntered(false);
         setShow(true);
         setPos(data.position);
-        setWaiting(data.position);
-        waitingRef.current = data.position;
       }
     } catch {
       // ignore
@@ -91,24 +86,6 @@ export default function QueueApp({ children, group = 'site', qid = 'main' }) {
       setTimeout(() => setMessage(''), 2000);
     }, [group, qid, enter]);
 
-  const fetchStatus = useCallback(async () => {
-    try {
-      const { data } = await axios.get('/queue/status', { params: { qid, group } });
-      const waitCnt = data.waiting ?? 0;
-      setRunning(data.running ?? 0);
-      setWaiting(waitCnt);
-      waitingRef.current = waitCnt;
-    } catch {
-      // ignore
-    }
-  }, [qid, group]);
-
-  useEffect(() => {
-    fetchStatus();
-    const id = setInterval(fetchStatus, 5000);
-    return () => clearInterval(id);
-  }, [fetchStatus]);
-
 
 
   useEffect(() => {
@@ -138,25 +115,40 @@ export default function QueueApp({ children, group = 'site', qid = 'main' }) {
   // Fallback position polling: if queued and no ENTER yet, poll /queue/position
   useEffect(() => {
     if (show && !entered) {
+      let stopped = false;
+      let inFlight = false;
+      const controller = new AbortController();
       if (posPollTimer.current) clearInterval(posPollTimer.current);
       posPollTimer.current = setInterval(async () => {
+        if (stopped || inFlight) return;
+        inFlight = true;
         try {
           const { data } = await axios.get('/queue/position', {
-            params: { group, qid, userId: userIdRef.current }
+            params: { group, qid, userId: userIdRef.current },
+            signal: controller.signal,
+            timeout: 10000,
           });
+          if (stopped) return;
           const p = typeof data.pos === 'number' ? data.pos : -1;
           setPos(p);
-          if (p <= 0) {
+          if (p === 0) {
             setEntered(true);
             setShow(false);
             clearInterval(posPollTimer.current);
             posPollTimer.current = null;
+          } else if (p < 0) {
+            // A missing session must re-enter the queue; only position 0 means admitted.
+            await enter();
           }
         } catch {
           // ignore
+        } finally {
+          inFlight = false;
         }
       }, 1500);
       return () => {
+        stopped = true;
+        controller.abort();
         if (posPollTimer.current) {
           clearInterval(posPollTimer.current);
           posPollTimer.current = null;
@@ -168,7 +160,7 @@ export default function QueueApp({ children, group = 'site', qid = 'main' }) {
         posPollTimer.current = null;
       }
     }
-  }, [show, entered, group, qid]);
+  }, [show, entered, group, qid, enter]);
 
   useEffect(() => {
     const WS_BASE = (window.location.protocol === 'https:' ? 'wss://' : 'ws://') + window.location.host;
@@ -182,8 +174,13 @@ export default function QueueApp({ children, group = 'site', qid = 'main' }) {
     window.addEventListener('keydown', sendPing);
 
     ws.onmessage = e => {
-      if (!e.data.startsWith('{')) return;
-      const msg = JSON.parse(e.data);
+      let msg;
+      try {
+        msg = JSON.parse(e.data);
+      } catch {
+        return;
+      }
+      if (!msg || typeof msg !== 'object') return;
 
       // 그룹 필터
     if (msg.group && msg.group !== group) return;
@@ -198,8 +195,6 @@ export default function QueueApp({ children, group = 'site', qid = 'main' }) {
         return;
       }
       if (msg.type === 'STATUS' && msg.group === group && msg.qid === qid) {
-        setRunning(msg.running ?? 0);
-        setWaiting(msg.waiting ?? 0);
         setPos(msg.pos ?? 0);
       }
     };

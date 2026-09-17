@@ -4,6 +4,7 @@ import com.card.Yugioh.dto.BanlistChangeNoticeDto;
 import com.card.Yugioh.security.QueueConfig;
 import com.card.Yugioh.service.CardService;
 import com.card.Yugioh.service.ImageService;
+import com.card.Yugioh.service.ImageFetchAlreadyRunningException;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -74,7 +75,7 @@ public class QueueAdminController {
   public ResponseEntity<?> fetchApiData(
       @RequestParam(required = false, defaultValue = "false") boolean all,
       @RequestParam(defaultValue = "500") int num,
-      @RequestParam(defaultValue = "100") int offset,
+      @RequestParam(defaultValue = "20") int offset,
       @RequestParam(defaultValue = "new") String sort
   ) throws IOException {
     try {
@@ -93,6 +94,9 @@ public class QueueAdminController {
       return ResponseEntity.ok(
           Map.of("ok", true, "processed", processed, "requestedUrl", url)
       );
+    } catch (ImageFetchAlreadyRunningException e) {
+      return ResponseEntity.status(HttpStatus.CONFLICT)
+          .body(Map.of("ok", false, "error", e.getMessage()));
     } catch (Exception e) {
       log.error("Card fetch failed", e);
       return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
@@ -111,4 +115,3 @@ public class QueueAdminController {
     cardService.crawlAll();
   }
 }
-

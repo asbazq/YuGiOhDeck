@@ -31,12 +31,10 @@ public class ScheduledTasks {
         fetchLimitData();
     }
 
-    // 2주마다 실행되는 스케줄러 설정 (Cron 표현식 사용)
-    // 초(0초),분(0분),시간(3시), */14(14일마다), *(매월), ?(요일을 지정하지 않음)
-    @Scheduled(cron = "0 0 3 */14 * MON", zone = "Asia/Seoul")
+    @Scheduled(cron = "${card.ingestion.cron:0 0 3 * * MON}", zone = "Asia/Seoul")
     public void fetchApiData() {
         try {
-            imageService.fetchAndSaveCardImages(apiUrl);
+            imageService.fetchChangedCardImages(apiUrl);
         } catch (IOException e) {
             e.printStackTrace();
         }
