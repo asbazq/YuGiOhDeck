@@ -31,7 +31,7 @@ public class ScheduledTasks {
         fetchLimitData();
     }
 
-    @Scheduled(cron = "${card.ingestion.cron:0 0 3 * * MON}", zone = "Asia/Seoul")
+    // @Scheduled(cron = "${card.ingestion.cron:0 0 3 * * MON}", zone = "Asia/Seoul")
     public void fetchApiData() {
         try {
             imageService.fetchChangedCardImages(apiUrl);
@@ -41,13 +41,13 @@ public class ScheduledTasks {
         
     }
     // 초 분 시 일 월 요일
-    @Scheduled(cron = "0 0 3 * * SUN", zone = "Asia/Seoul")
+    // @Scheduled(cron = "0 0 3 * * SUN", zone = "Asia/Seoul")
     public void fetchLimitData() {
         cardService.limitCrawl();
     }
 
     // 초 분 시 일 월 요일
-    @Scheduled(cron = "0 0 6 * * WED", zone = "Asia/Seoul")
+    // @Scheduled(cron = "0 0 6 * * WED", zone = "Asia/Seoul")
     public void fetchKorData() {
         cardService.crawlAll();
     }
